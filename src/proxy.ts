@@ -1,0 +1,65 @@
+import { NextRequest, NextResponse } from "next/server";
+import {
+  decrypt,
+  sessionCookieName,
+  portalSessionCookieName,
+} from "@/lib/session";
+
+// Verificación optimista: solo se leen las cookies (sin tocar la base de datos).
+// El claim `kind` del JWT separa las dos identidades.
+interface RequestSessions {
+  therapist: boolean;
+  portal: boolean;
+}
+
+async function readSessions(req: NextRequest): Promise<RequestSessions> {
+  const [therapist, portal] = await Promise.all([
+    decrypt(req.cookies.get(sessionCookieName)?.value),
+    decrypt(req.cookies.get(portalSessionCookieName)?.value),
+  ]);
+  return {
+    therapist: therapist?.kind === "therapist",
+    portal: portal?.kind === "portal",
+  };
+}
+
+export default async function proxy(req: NextRequest) {
+  const path = req.nextUrl.pathname;
+  const sessions = await readSessions(req);
+
+  // Ruta pública: la aceptación de invitación solo necesita el token del enlace.
+  // Se deja pasar siempre: si la sesión portal es válida, la propia página de
+  // ingreso redirige al home. Redirigir aquí a ciegas crearía un ciclo infinito
+  // cuando la cookie existe pero el acceso ya no es válido (revocado, paciente
+  // inactivo o invitación sin aceptar), porque el área /portal volvería a
+  // mandar al paciente a esta misma ruta.
+  if (path.startsWith("/portal/ingresar")) {
+    return NextResponse.next();
+  }
+
+  // Área del portal: exige sesión portal. Un terapeuta va a su panel.
+  if (path.startsWith("/portal")) {
+    if (sessions.portal) return NextResponse.next();
+    if (sessions.therapist) return NextResponse.redirect(new URL("/", req.nextUrl));
+    return NextResponse.redirect(new URL("/portal/ingresar", req.nextUrl));
+  }
+
+  // /login es pública; con sesión terapeuta se manda al panel.
+  if (path === "/login") {
+    if (sessions.therapist) return NextResponse.redirect(new URL("/", req.nextUrl));
+    return NextResponse.next();
+  }
+
+  // Resto del área (app): exige sesión terapeuta. Un paciente va a su portal.
+  if (!sessions.therapist) {
+    if (sessions.portal) return NextResponse.redirect(new URL("/portal", req.nextUrl));
+    return NextResponse.redirect(new URL("/login", req.nextUrl));
+  }
+
+  return NextResponse.next();
+}
+
+// El proxy corre en todas las rutas excepto assets estáticos e internos.
+export const config = {
+  matcher: ["/((?!api|_next/static|_next/image|_next/webpack-hmr|favicon.ico|.*\\.svg$).*)"],
+};

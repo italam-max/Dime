@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dime
 
-## Getting Started
+Plataforma integral para el seguimiento de citas de terapia psicológica. El **paciente es el núcleo** del sistema: ficha clínica, agenda de citas, notas de sesión y pagos giran alrededor de él.
 
-First, run the development server:
+Estética *Calma*: minimalismo premium, colores sobrios, tipografía editorial. Todo el copy está en español.
+
+## Módulos
+
+- **Panel** — KPIs del mes (citas, tasa de asistencia, ingresos, pacientes activos), gráficas de ingresos/asistencia, próximas citas y saldos pendientes.
+- **Pacientes** — alta, edición, baja lógica, búsqueda, filtros y ficha completa con historial de citas y pagos.
+- **Agenda** — vista semanal y del día, creación de citas con validación de solapamiento, confirmar/reprogramar/cancelar, notas de sesión al completar.
+- **Pagos** — registro de pagos por paciente/cita, estados (pendiente/pagado/parcial), vista de saldos pendientes.
+
+La especificación completa está en [`docs/`](docs/01-requerimientos.md): requerimientos, arquitectura, design system y roadmap.
+
+## Stack
+
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 + shadcn/ui · Prisma 6 · SQLite (dev) / PostgreSQL (prod) · sesión propia con jose · React Hook Form + Zod · date-fns · Recharts.
+
+## Requisitos
+
+- Node.js 20+ y npm.
+- Para desarrollo: nada más (SQLite, archivo local).
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env        # Windows: copy .env.example .env
+npx prisma migrate dev      # crea prisma/dev.db y aplica migraciones
+npm run db:seed             # datos de ejemplo (terapeuta, 6 pacientes, citas y pagos)
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Credenciales del seed:** `terapeuta@dime.app` / `dime1234`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Comando | Descripción |
+|---|---|
+| `npm run dev` | Servidor de desarrollo |
+| `npm run build` / `npm start` | Build y servidor de producción |
+| `npm run lint` | ESLint |
+| `npm run db:migrate` | Migraciones de Prisma |
+| `npm run db:seed` | Poblar la base con datos de ejemplo |
 
-## Learn More
+## Variables de entorno
 
-To learn more about Next.js, take a look at the following resources:
+Definidas en `.env` (ver `.env.example`):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `DATABASE_URL` — `file:./dev.db` en desarrollo; cadena PostgreSQL en producción.
+- `SESSION_SECRET` — secreto HS256 para firmar la cookie de sesión (genera uno propio en producción).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Pasar a PostgreSQL (producción)
 
-## Deploy on Vercel
+1. En `prisma/schema.prisma` cambia `provider = "sqlite"` a `provider = "postgresql"`.
+2. Ajusta `DATABASE_URL` a tu instancia.
+3. `npx prisma migrate deploy` y regenera el cliente.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+El esquema usa campos `String` en lugar de enums nativos precisamente para que esta migración sea directa; la validación de valores vive en `src/lib/validations/`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Notas
+
+- Los datos del seed son **ficticios**; no introducir datos reales de pacientes en desarrollo.
+- El área de la aplicación exige autenticación (`src/proxy.ts`, convención de Next 16).

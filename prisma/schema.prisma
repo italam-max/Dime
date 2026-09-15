@@ -1,0 +1,195 @@
+// Modelo de datos de Dime.
+// Los estados y tipos se guardan como String (validados por Zod en la aplicación)
+// para mantener portabilidad SQLite → PostgreSQL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model Patient {
+  id                 String        @id @default(cuid())
+  nombre             String
+  apellidos          String
+  fechaNacimiento    DateTime?
+  sexo               String?
+  telefono           String
+  email              String?
+  direccion          String?
+  contactoEmergencia String?
+  antecedentes       String? // motivo de consulta
+  notasInternas      String?
+  isActive           Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  appointments       Appointment[]
+  payments           Payment[]
+  portalAccess       PortalAccess?
+  consents           Consent[]
+  tasks              Task[]
+  assessmentAssignments AssessmentAssignment[]
+  articleAssignments ArticleAssignment[]
+
+  @@index([apellidos, nombre])
+}
+
+// Acceso al portal del paciente: identidad del paciente fuera del área del
+// terapeuta. El token de invitación viaja solo en el enlace; en base de datos
+// se guarda únicamente su sha256.
+model PortalAccess {
+  id         String    @id @default(cuid())
+  patientId  String    @unique // un acceso activo por paciente
+  patient    Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique // sha256 del token; el token en claro solo viaja en el enlace
+  invitedAt  DateTime  @default(now())
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([tokenHash])
+}
+
+// Consentimientos informados digitales. type: PORTAL (extensible:
+// TRATAMIENTO_DATOS, MENOR_EDAD...). version identifica el texto mostrado.
+model Consent {
+  id         String   @id @default(cuid())
+  patientId  String
+  patient    Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  type       String
+  version    String
+  acceptedAt DateTime @default(now())
+  ip         String?
+
+  @@index([patientId, type])
+}
+
+// Tareas entre sesiones. Evoluciona el campo legacy Appointment.sessionTasks.
+model Task {
+  id            String       @id @default(cuid())
+  patientId     String
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String? // sesión que la originó
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  title         String
+  dueDate       DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime     @default(now())
+
+  @@index([patientId, completedAt])
+}
+
+model Appointment {
+  id           String    @id @default(cuid())
+  patientId    String
+  patient      Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  startAt      DateTime
+  endAt        DateTime
+  status       String    @default("PENDIENTE") // PENDIENTE | CONFIRMADA | COMPLETADA | NO_ASISTIO | CANCELADA
+  type         String    @default("PRESENCIAL") // PRESENCIAL | ONLINE
+  // Nota: en producción (PostgreSQL) este campo será Decimal; SQLite no lo soporta y usa Float.
+  fee          Float?
+  sessionNotes String?
+  sessionTasks String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  payments     Payment[]
+  tasks        Task[]
+
+  @@index([startAt])
+  @@index([patientId])
+}
+
+model Payment {
+  id            String       @id @default(cuid())
+  patientId     String
+  patient       Patient      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  amount        Float
+  method        String       @default("EFECTIVO") // EFECTIVO | TRANSFERENCIA | TARJETA | OTRO
+  status        String       @default("PENDIENTE") // PENDIENTE | PAGADO | PARCIAL
+  paidAt        DateTime?
+  concept       String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([patientId])
+}
+
+// Instrumentos estandarizados (PHQ-9, GAD-7, WHO-5). Ítems y reglas de puntaje
+// como JSON estructurado: los instrumentos son datos, no código.
+model AssessmentInstrument {
+  id          String               @id @default(cuid())
+  code        String               @unique // PHQ9 | GAD7 | WHO5
+  name        String
+  items       String // JSON: [{ "text": "...", "options": [{ "label": "...", "value": 0 }] }]
+  scoring     String // JSON: { "type": "sum", "ranges": [{ "min": 0, "max": 4, "label": "..." }] }
+  isActive    Boolean              @default(true)
+  assignments AssessmentAssignment[]
+}
+
+// Asignación de un instrumento a un paciente con frecuencia y próxima fecha.
+model AssessmentAssignment {
+  id           String               @id @default(cuid())
+  patientId    String
+  patient      Patient              @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  instrumentId String
+  instrument   AssessmentInstrument @relation(fields: [instrumentId], references: [id])
+  frequency    String // UNICA | SEMANAL | QUINCENAL
+  nextDueAt    DateTime
+  active       Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  responses    AssessmentResponse[]
+
+  @@index([patientId, active])
+  @@index([nextDueAt, active])
+}
+
+// Respuesta del paciente: valores por ítem (JSON) y puntaje calculado.
+model AssessmentResponse {
+  id           String               @id @default(cuid())
+  assignmentId String
+  assignment   AssessmentAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  answers      String // JSON: [0, 1, 2, ...] en el orden de los ítems
+  score        Int
+  createdAt    DateTime             @default(now())
+
+  @@index([assignmentId, createdAt])
+}
+
+// Material psicoeducativo del terapeuta (privado por cuenta).
+model Article {
+  id          String              @id @default(cuid())
+  title       String
+  category    String // ANSIEDAD | DEPRESION | ESTRES | SUENO | GENERAL
+  body        String // markdown
+  published   Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  assignments ArticleAssignment[]
+}
+
+// Asignación de un artículo a un paciente; readAt registra la primera apertura.
+model ArticleAssignment {
+  id         String    @id @default(cuid())
+  articleId  String
+  article    Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  patientId  String
+  patient    Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  assignedAt DateTime  @default(now())
+  readAt     DateTime?
+
+  @@index([patientId])
+}
