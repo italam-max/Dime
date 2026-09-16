@@ -32,7 +32,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </div>
         </header>
 
-        <main className="mx-auto max-w-6xl p-8">{children}</main>
+        <main className="mx-auto max-w-6xl animate-fade-in p-8">{children}</main>
       </div>
     </div>
   );

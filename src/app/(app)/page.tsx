@@ -297,7 +297,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="animate-fade-in space-y-8">
+    <div className="space-y-8">
       {/* ── Bienvenida ── */}
       <div>
         <h1 className="font-display text-4xl font-semibold text-foreground">Panel</h1>
@@ -311,7 +311,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* ── KPIs del mes ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger-children grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Citas del mes"
           value={String(citasMes)}
