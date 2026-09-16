@@ -6,11 +6,15 @@ import {
   ArrowLeft,
   CalendarClock,
   CalendarDays,
+  CheckCircle2,
   ClipboardList,
+  Clock,
   ListTodo,
   Lock,
   Pencil,
   Smartphone,
+  TrendingDown,
+  TrendingUp,
   UserRound,
   Wallet,
 } from "lucide-react";
@@ -29,6 +33,7 @@ import { TaskToggleButton } from "@/components/pacientes/task-toggle-button";
 import { AssessmentsSection } from "@/components/pacientes/assessments-section";
 import { MaterialSection } from "@/components/pacientes/material-section";
 import { NewAppointmentDialog } from "@/components/agenda/new-appointment-dialog";
+import { FichaTabs } from "@/components/pacientes/ficha-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -45,8 +50,17 @@ export const metadata: Metadata = {
   title: "Ficha del paciente · Dime",
 };
 
-// Ficha clínica del paciente: identidad y signos clave en el encabezado,
-// y un espacio de trabajo a dos columnas (rail de contexto + seguimiento).
+type TimelineEvent = {
+  key: string;
+  date: Date;
+  title: string;
+  sub: string;
+  tone: "sage" | "warm";
+};
+
+// Ficha clínica: identidad y signos vitales en el encabezado; el resto del
+// trabajo agrupado por intención en pestañas (Resumen, Evolución,
+// Seguimiento, Historial).
 export default async function PacienteDetallePage({
   params,
 }: {
@@ -68,12 +82,10 @@ export default async function PacienteDetallePage({
   const ahora = new Date();
   const age = calculateAge(patient.fechaNacimiento);
 
-  // Saldo pendiente: suma de pagos que no están PAGADOS (pendientes o parciales).
   const saldoPendiente = patient.payments
     .filter((payment) => payment.status !== "PAGADO")
     .reduce((sum, payment) => sum + payment.amount, 0);
 
-  // Signos clave para la tira de estadísticas del encabezado.
   const proximaCita = patient.appointments
     .filter((a) => a.startAt.getTime() > ahora.getTime() && a.status !== "CANCELADA")
     .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())[0];
@@ -84,12 +96,26 @@ export default async function PacienteDetallePage({
       ? Math.round((sesionesCompletadas / (sesionesCompletadas + noAsistio)) * 100)
       : null;
 
-  // Acceso al portal: estado de la invitación y último consentimiento aceptado.
-  const [portalAccess, portalConsent] = await Promise.all([
+  const [portalAccess, portalConsent, responses, materialAssignments] = await Promise.all([
     prisma.portalAccess.findUnique({ where: { patientId: patient.id } }),
     prisma.consent.findFirst({
       where: { patientId: patient.id, type: "PORTAL" },
       orderBy: { acceptedAt: "desc" },
+    }),
+    prisma.assessmentResponse.findMany({
+      where: { assignment: { patientId: patient.id } },
+      orderBy: { createdAt: "asc" },
+      select: {
+        createdAt: true,
+        score: true,
+        assignment: { select: { instrument: { select: { code: true, name: true } } } },
+      },
+    }),
+    prisma.articleAssignment.findMany({
+      where: { patientId: patient.id },
+      orderBy: { assignedAt: "desc" },
+      take: 4,
+      include: { article: { select: { title: true } } },
     }),
   ]);
 
@@ -100,7 +126,6 @@ export default async function PacienteDetallePage({
     portalStatus = "pending";
   }
 
-  // Tareas: activas y % de cumplimiento de las últimas 4 semanas.
   const tareasActivas = patient.tasks.filter((task) => task.completedAt === null);
   const tareasHechasRecientes = patient.tasks
     .filter((task) => task.completedAt !== null)
@@ -120,12 +145,43 @@ export default async function PacienteDetallePage({
       ? Math.round((tareasCompletadasMes / tareasCreadasMes) * 100)
       : null;
 
+  // Evolución: instrumento con más mediciones (≥2), delta de las dos últimas.
+  // En escalas de síntomas un descenso es mejora (salvia); un alza, atención.
+  const porInstrumento = new Map<string, { name: string; scores: number[] }>();
+  for (const r of responses) {
+    const code = r.assignment.instrument.code;
+    const entry = porInstrumento.get(code) ?? { name: r.assignment.instrument.name, scores: [] };
+    entry.scores.push(r.score);
+    porInstrumento.set(code, entry);
+  }
+  let trend: { code: string; delta: number; last: number } | null = null;
+  for (const [code, { scores }] of porInstrumento) {
+    if (scores.length >= 2 && (trend === null || scores.length > porInstrumento.get(trend.code)!.scores.length)) {
+      trend = { code, delta: scores[scores.length - 1] - scores[scores.length - 2], last: scores[scores.length - 1] };
+    }
+  }
+
+  const timeline = buildTimeline({
+    appointments: patient.appointments,
+    tasks: patient.tasks,
+    responses,
+    materialAssignments,
+    ahora,
+  });
+
   const contactChips = [
     age !== null ? `${age} años` : null,
     patient.sexo,
     patient.telefono,
     patient.email,
   ].filter(Boolean) as string[];
+
+  const tabs = [
+    { id: "resumen", label: "Resumen", icon: "dashboard" as const },
+    { id: "evolucion", label: "Evolución", icon: "activity" as const },
+    { id: "seguimiento", label: "Seguimiento", icon: "list" as const },
+    { id: "historial", label: "Historial", icon: "history" as const },
+  ];
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -137,7 +193,7 @@ export default async function PacienteDetallePage({
         Volver a pacientes
       </Link>
 
-      {/* ── Hero: identidad + signos clave ── */}
+      {/* ── Hero: identidad + signos vitales ── */}
       <header className="overflow-hidden rounded-card bg-surface shadow-soft ring-1 ring-foreground/5">
         <div className="flex flex-wrap items-start gap-5 p-6">
           <Monogram name={patient.nombre} last={patient.apellidos} />
@@ -181,100 +237,119 @@ export default async function PacienteDetallePage({
           </div>
         </div>
 
-        {/* Tira de signos clave */}
-        <dl className="grid grid-cols-2 divide-x divide-y divide-border border-t border-border sm:grid-cols-4 sm:divide-y-0">
-          <StatTile
-            icon={CalendarClock}
-            label="Próxima cita"
-            value={proximaCita ? formatDate(proximaCita.startAt, "d MMM") : "Sin agendar"}
-            sub={proximaCita ? formatDate(proximaCita.startAt, "h:mm a") : undefined}
-            muted={!proximaCita}
-          />
-          <StatTile
-            icon={CalendarDays}
-            label="Sesiones"
-            value={String(sesionesCompletadas)}
-            sub="completadas"
-          />
-          <StatTile
-            icon={ListTodo}
-            label="Asistencia"
-            value={asistencia !== null ? `${asistencia}%` : "—"}
-            sub={asistencia !== null ? `${sesionesCompletadas}/${sesionesCompletadas + noAsistio}` : "sin datos"}
-            accent={asistencia !== null && asistencia < 60}
-          />
-          <StatTile
-            icon={Wallet}
-            label="Saldo"
-            value={formatCurrency(saldoPendiente)}
-            sub={saldoPendiente > 0 ? "pendiente" : "al corriente"}
-            accent={saldoPendiente > 0}
-          />
-        </dl>
+        {/* Signos vitales: anillos + cifras clave */}
+        <div className="border-t border-border p-6">
+          <div className="flex items-center gap-8">
+            <ProgressRing value={asistencia} label="Asistencia" tone="var(--color-primary)" />
+            <ProgressRing value={cumplimiento} label="Adherencia" tone="var(--color-primary-light)" />
+          </div>
+          <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+            <StatTile
+              icon={CalendarClock}
+              label="Próxima cita"
+              value={proximaCita ? formatDate(proximaCita.startAt, "d MMM") : "Sin agendar"}
+              sub={proximaCita ? formatDate(proximaCita.startAt, "h:mm a") : undefined}
+              muted={!proximaCita}
+            />
+            <StatTile
+              icon={CheckCircle2}
+              label="Sesiones"
+              value={String(sesionesCompletadas)}
+              sub="completadas"
+            />
+            <StatTile
+              icon={trend && trend.delta > 0 ? TrendingUp : TrendingDown}
+              label="Evolución"
+              value={trend ? `${trend.delta > 0 ? "+" : ""}${trend.delta}` : "—"}
+              sub={trend ? `${trend.code} · ${trend.delta <= 0 ? "mejora" : "atención"}` : "sin datos"}
+              accent={Boolean(trend && trend.delta > 0)}
+            />
+            <StatTile
+              icon={Wallet}
+              label="Saldo"
+              value={formatCurrency(saldoPendiente)}
+              sub={saldoPendiente > 0 ? "pendiente" : "al corriente"}
+              accent={saldoPendiente > 0}
+            />
+          </dl>
+        </div>
       </header>
 
-      {/* ── Cuerpo a dos columnas ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Rail de contexto (sticky en desktop) */}
-        <aside className="stagger-children space-y-6 lg:sticky lg:top-6 lg:self-start">
-          <SectionCard icon={UserRound} title="Información general">
-            <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-1">
-              <InfoItem
-                label="Fecha de nacimiento"
-                value={
-                  patient.fechaNacimiento
-                    ? formatDate(patient.fechaNacimiento, "d 'de' MMM yyyy")
-                    : null
-                }
-              />
-              <InfoItem label="Sexo" value={patient.sexo} />
-              <InfoItem label="Dirección" value={patient.direccion} />
-              <InfoItem label="Contacto de emergencia" value={patient.contactoEmergencia} />
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            icon={Smartphone}
-            title="Portal del paciente"
-            action={
-              portalStatus === "active" && portalConsent ? (
-                <p className="text-xs text-muted-foreground">
-                  Consentimiento el {formatDate(portalConsent.acceptedAt, "d MMM yyyy")}
+      {/* ── Pestañas ── */}
+      <FichaTabs tabs={tabs}>
+        {/* Resumen */}
+        <div data-tab="resumen" className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <SectionCard icon={ClipboardList} title="Motivo de consulta y antecedentes">
+              {patient.antecedentes ? (
+                <p className="whitespace-pre-line text-sm leading-relaxed">{patient.antecedentes}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Aún no se registran antecedentes. Puedes agregarlos desde Editar.
                 </p>
-              ) : undefined
-            }
-          >
-            <PortalWidget
-              patientId={patient.id}
-              status={portalStatus}
-              acceptedAt={portalAccess?.acceptedAt ?? null}
-              expiresAt={portalAccess?.expiresAt ?? null}
-            />
-          </SectionCard>
-        </aside>
+              )}
+            </SectionCard>
 
-        {/* Columna de trabajo clínico y seguimiento */}
-        <div className="stagger-children space-y-6 lg:col-span-2">
-          <SectionCard icon={ClipboardList} title="Motivo de consulta y antecedentes">
-            {patient.antecedentes ? (
-              <p className="whitespace-pre-line text-sm leading-relaxed">{patient.antecedentes}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Aún no se registran antecedentes. Puedes agregarlos desde Editar.
-              </p>
-            )}
-          </SectionCard>
+            <SectionCard icon={Clock} title="Actividad reciente">
+              <Timeline events={timeline} />
+            </SectionCard>
 
-          <SectionCard icon={Lock} title="Notas internas">
-            {patient.notasInternas ? (
-              <p className="whitespace-pre-line text-sm leading-relaxed">{patient.notasInternas}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Sin notas internas. Solo tú puedes ver esta sección.
-              </p>
-            )}
-          </SectionCard>
+            <SectionCard icon={Lock} title="Notas internas">
+              {patient.notasInternas ? (
+                <p className="whitespace-pre-line text-sm leading-relaxed">{patient.notasInternas}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Sin notas internas. Solo tú puedes ver esta sección.
+                </p>
+              )}
+            </SectionCard>
+          </div>
 
+          <div className="space-y-6">
+            <SectionCard icon={UserRound} title="Información general">
+              <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-1">
+                <InfoItem
+                  label="Fecha de nacimiento"
+                  value={
+                    patient.fechaNacimiento
+                      ? formatDate(patient.fechaNacimiento, "d 'de' MMM yyyy")
+                      : null
+                  }
+                />
+                <InfoItem label="Sexo" value={patient.sexo} />
+                <InfoItem label="Dirección" value={patient.direccion} />
+                <InfoItem label="Contacto de emergencia" value={patient.contactoEmergencia} />
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              icon={Smartphone}
+              title="Portal del paciente"
+              action={
+                portalStatus === "active" && portalConsent ? (
+                  <p className="text-xs text-muted-foreground">
+                    Consentimiento el {formatDate(portalConsent.acceptedAt, "d MMM yyyy")}
+                  </p>
+                ) : undefined
+              }
+            >
+              <PortalWidget
+                patientId={patient.id}
+                status={portalStatus}
+                acceptedAt={portalAccess?.acceptedAt ?? null}
+                expiresAt={portalAccess?.expiresAt ?? null}
+              />
+            </SectionCard>
+          </div>
+        </div>
+
+        {/* Evolución */}
+        <div data-tab="evolucion">
+          <AssessmentsSection patientId={patient.id} />
+        </div>
+
+        {/* Seguimiento */}
+        <div data-tab="seguimiento" className="space-y-6">
           <SectionCard
             icon={ListTodo}
             title="Tareas entre sesiones"
@@ -327,10 +402,11 @@ export default async function PacienteDetallePage({
             )}
           </SectionCard>
 
-          {/* Evaluaciones y material: componentes auto-contenidos */}
-          <AssessmentsSection patientId={patient.id} />
           <MaterialSection patientId={patient.id} />
+        </div>
 
+        {/* Historial */}
+        <div data-tab="historial" className="space-y-6">
           <SectionCard icon={CalendarDays} title="Historial de citas" contentClassName="px-0">
             {patient.appointments.length === 0 ? (
               <p className="px-(--card-spacing) pb-2 text-sm text-muted-foreground">
@@ -439,21 +515,138 @@ export default async function PacienteDetallePage({
             )}
           </SectionCard>
         </div>
-      </div>
+      </FichaTabs>
     </div>
   );
 }
 
-// Monograma con degradado salvia e iniciales del paciente.
-function Monogram({ name, last }: { name: string; last: string }) {
-  const initials = `${name.charAt(0)}${last.charAt(0)}`.toUpperCase();
+// Reúne los eventos recientes (pasados) de distintas fuentes para la línea
+// de tiempo, ordenados del más reciente al más antiguo.
+function buildTimeline({
+  appointments,
+  tasks,
+  responses,
+  materialAssignments,
+  ahora,
+}: {
+  appointments: { id: string; startAt: Date; status: string; type: string }[];
+  tasks: { id: string; title: string; createdAt: Date; completedAt: Date | null; dueDate: Date | null }[];
+  responses: { createdAt: Date; score: number; assignment: { instrument: { code: string } } }[];
+  materialAssignments: { id: string; assignedAt: Date; article: { title: string } }[];
+  ahora: Date;
+}): TimelineEvent[] {
+  const events: TimelineEvent[] = [];
+
+  for (const a of appointments) {
+    if (a.startAt.getTime() > ahora.getTime()) continue;
+    if (a.status === "COMPLETADA") {
+      events.push({ key: `a-${a.id}`, date: a.startAt, title: "Sesión completada", sub: "Sesión de terapia", tone: "sage" });
+    } else if (a.status === "NO_ASISTIO") {
+      events.push({ key: `a-${a.id}`, date: a.startAt, title: "No asistió a la sesión", sub: "Ausencia registrada", tone: "warm" });
+    }
+  }
+  for (const t of tasks) {
+    if (t.completedAt) {
+      events.push({ key: `t-${t.id}`, date: t.completedAt, title: "Tarea completada", sub: t.title, tone: "sage" });
+    } else if (t.dueDate && t.dueDate.getTime() < ahora.getTime()) {
+      events.push({ key: `t-${t.id}`, date: t.dueDate, title: "Tarea vencida", sub: t.title, tone: "warm" });
+    }
+  }
+  for (const r of responses) {
+    events.push({
+      key: `r-${r.createdAt.getTime()}-${r.assignment.instrument.code}`,
+      date: r.createdAt,
+      title: `${r.assignment.instrument.code} respondido`,
+      sub: `Puntaje ${r.score}`,
+      tone: "sage",
+    });
+  }
+  for (const m of materialAssignments) {
+    events.push({ key: `m-${m.id}`, date: m.assignedAt, title: "Material asignado", sub: m.article.title, tone: "sage" });
+  }
+
+  return events.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 6);
+}
+
+// Línea de tiempo vertical con puntos por evento.
+function Timeline({ events }: { events: TimelineEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Aún no hay actividad registrada. Las sesiones, tareas y evaluaciones aparecerán aquí.
+      </p>
+    );
+  }
   return (
-    <span
-      aria-hidden
-      className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-light font-display text-2xl font-semibold text-primary-foreground shadow-soft"
-    >
-      {initials}
-    </span>
+    <ul className="relative">
+      {events.map((e, i) => (
+        <li
+          key={e.key}
+          className={cn(
+            "relative ml-1.5 border-l-2 pl-5",
+            i === events.length - 1 ? "border-transparent pb-0" : "border-border pb-5"
+          )}
+        >
+          <span
+            className={cn(
+              "absolute -left-[7px] top-0.5 size-3 rounded-full ring-4 ring-surface",
+              e.tone === "warm" ? "bg-accent-warm" : "bg-primary"
+            )}
+            aria-hidden
+          />
+          <p className="text-sm font-medium text-foreground">{e.title}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {e.sub} · {formatDate(e.date, "d 'de' MMM")}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// Anillo de progreso animado (SVG). value 0–100 o null.
+function ProgressRing({
+  value,
+  label,
+  tone,
+}: {
+  value: number | null;
+  label: string;
+  tone: string;
+}) {
+  const r = 26;
+  const circ = 2 * Math.PI * r;
+  const off = circ * (1 - (value ?? 0) / 100);
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative size-16">
+        <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90">
+          <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-surface-muted)" strokeWidth="6" />
+          <circle
+            className="progress-ring"
+            cx="32"
+            cy="32"
+            r={r}
+            fill="none"
+            stroke={tone}
+            strokeWidth="6"
+            strokeLinecap="round"
+            style={{
+              strokeDasharray: circ,
+              strokeDashoffset: off,
+              ["--ring-circ" as string]: `${circ}`,
+              ["--ring-off" as string]: `${off}`,
+            }}
+          />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums text-foreground">
+          {value !== null ? `${value}%` : "—"}
+        </span>
+      </div>
+      <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </span>
+    </div>
   );
 }
 
@@ -474,7 +667,7 @@ function StatTile({
   muted?: boolean;
 }) {
   return (
-    <div className="p-4 sm:p-5">
+    <div>
       <div className="flex items-center gap-2">
         <span
           className={cn(
@@ -526,6 +719,18 @@ function SectionCard({
       </CardHeader>
       <CardContent className={contentClassName}>{children}</CardContent>
     </Card>
+  );
+}
+
+function Monogram({ name, last }: { name: string; last: string }) {
+  const initials = `${name.charAt(0)}${last.charAt(0)}`.toUpperCase();
+  return (
+    <span
+      aria-hidden
+      className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-light font-display text-2xl font-semibold text-primary-foreground shadow-soft"
+    >
+      {initials}
+    </span>
   );
 }
 
