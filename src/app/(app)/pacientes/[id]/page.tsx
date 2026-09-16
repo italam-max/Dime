@@ -3,10 +3,14 @@ import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  AlertCircle,
   ArrowLeft,
+  BookOpen,
+  CalendarCheck,
   CalendarClock,
-  CalendarDays,
+  CalendarX,
   CheckCircle2,
+  ClipboardCheck,
   ClipboardList,
   Clock,
   ListTodo,
@@ -22,8 +26,6 @@ import { subWeeks } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { calculateAge, formatCurrency, formatDate, patientFullName } from "@/lib/utils";
 import {
-  AppointmentStatusBadge,
-  AppointmentTypeLabel,
   PatientActiveBadge,
   PaymentStatusBadge,
 } from "@/components/pacientes/status-badge";
@@ -36,14 +38,6 @@ import { NewAppointmentDialog } from "@/components/agenda/new-appointment-dialog
 import { FichaTabs } from "@/components/pacientes/ficha-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -55,7 +49,8 @@ type TimelineEvent = {
   date: Date;
   title: string;
   sub: string;
-  tone: "sage" | "warm";
+  tone: "sage" | "warm" | "upcoming";
+  icon: LucideIcon;
 };
 
 // Ficha clínica: identidad y signos vitales en el encabezado; el resto del
@@ -166,8 +161,11 @@ export default async function PacienteDetallePage({
     tasks: patient.tasks,
     responses,
     materialAssignments,
+    proximaCita,
     ahora,
   });
+
+  const pagosRecientes = patient.payments.slice(0, 4);
 
   const contactChips = [
     age !== null ? `${age} años` : null,
@@ -180,7 +178,6 @@ export default async function PacienteDetallePage({
     { id: "resumen", label: "Resumen", icon: "dashboard" as const },
     { id: "evolucion", label: "Evolución", icon: "activity" as const },
     { id: "seguimiento", label: "Seguimiento", icon: "list" as const },
-    { id: "historial", label: "Historial", icon: "history" as const },
   ];
 
   return (
@@ -340,6 +337,53 @@ export default async function PacienteDetallePage({
                 expiresAt={portalAccess?.expiresAt ?? null}
               />
             </SectionCard>
+
+            <SectionCard icon={Wallet} title="Pagos">
+              <div
+                className={cn(
+                  "flex items-baseline justify-between rounded-control px-4 py-3",
+                  saldoPendiente > 0 ? "bg-accent-warm-soft" : "bg-surface-muted"
+                )}
+              >
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {saldoPendiente > 0 ? "Saldo pendiente" : "Al corriente"}
+                </span>
+                <span
+                  className={cn(
+                    "text-xl font-semibold tabular-nums",
+                    saldoPendiente > 0 ? "text-accent-warm" : "text-foreground"
+                  )}
+                >
+                  {formatCurrency(saldoPendiente)}
+                </span>
+              </div>
+              {pagosRecientes.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Aún no tiene pagos registrados.
+                </p>
+              ) : (
+                <ul className="mt-2 divide-y divide-border">
+                  {pagosRecientes.map((payment) => (
+                    <li key={payment.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {payment.concept ?? "Sesión"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatDate(payment.paidAt ?? payment.createdAt, "d 'de' MMM yyyy")}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="text-sm font-semibold tabular-nums text-foreground">
+                          {formatCurrency(payment.amount)}
+                        </span>
+                        <PaymentStatusBadge status={payment.status} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
           </div>
         </div>
 
@@ -404,117 +448,6 @@ export default async function PacienteDetallePage({
 
           <MaterialSection patientId={patient.id} />
         </div>
-
-        {/* Historial */}
-        <div data-tab="historial" className="space-y-6">
-          <SectionCard icon={CalendarDays} title="Historial de citas" contentClassName="px-0">
-            {patient.appointments.length === 0 ? (
-              <p className="px-(--card-spacing) pb-2 text-sm text-muted-foreground">
-                Aún no tiene citas registradas. Puedes agendar la primera desde la agenda.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="pl-6 text-xs uppercase tracking-widest text-muted-foreground">
-                      Fecha
-                    </TableHead>
-                    <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                      Tipo
-                    </TableHead>
-                    <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                      Estado
-                    </TableHead>
-                    <TableHead className="pr-6 text-right text-xs uppercase tracking-widest text-muted-foreground">
-                      Acción
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {patient.appointments.map((appointment) => (
-                    <TableRow key={appointment.id}>
-                      <TableCell className="pl-6">
-                        {formatDate(appointment.startAt, "d 'de' MMM yyyy, h:mm a")}
-                      </TableCell>
-                      <TableCell>
-                        <AppointmentTypeLabel type={appointment.type} />
-                      </TableCell>
-                      <TableCell>
-                        <AppointmentStatusBadge status={appointment.status} />
-                      </TableCell>
-                      <TableCell className="pr-6 text-right">
-                        <Link
-                          href="/agenda"
-                          className="text-sm text-primary underline-offset-4 hover:underline"
-                        >
-                          Ver en agenda
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </SectionCard>
-
-          <SectionCard icon={Wallet} title="Historial de pagos" contentClassName="px-0">
-            {patient.payments.length === 0 ? (
-              <p className="px-(--card-spacing) pb-2 text-sm text-muted-foreground">
-                Aún no tiene pagos registrados.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="pl-6 text-xs uppercase tracking-widest text-muted-foreground">
-                      Fecha
-                    </TableHead>
-                    <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                      Concepto
-                    </TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-widest text-muted-foreground">
-                      Monto
-                    </TableHead>
-                    <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                      Estado
-                    </TableHead>
-                    <TableHead className="pr-6 text-right text-xs uppercase tracking-widest text-muted-foreground">
-                      Saldo
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {patient.payments.map((payment) => {
-                    const hasSaldo =
-                      payment.status === "PENDIENTE" || payment.status === "PARCIAL";
-                    return (
-                      <TableRow key={payment.id}>
-                        <TableCell className="pl-6 text-muted-foreground">
-                          {formatDate(payment.paidAt ?? payment.createdAt, "d 'de' MMM yyyy")}
-                        </TableCell>
-                        <TableCell>{payment.concept ?? "Sesión"}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrency(payment.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <PaymentStatusBadge status={payment.status} />
-                        </TableCell>
-                        <TableCell
-                          className={cn(
-                            "pr-6 text-right tabular-nums",
-                            hasSaldo ? "font-medium text-accent-warm" : "text-muted-foreground"
-                          )}
-                        >
-                          {hasSaldo ? formatCurrency(payment.amount) : "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            )}
-          </SectionCard>
-        </div>
       </FichaTabs>
     </div>
   );
@@ -527,29 +460,41 @@ function buildTimeline({
   tasks,
   responses,
   materialAssignments,
+  proximaCita,
   ahora,
 }: {
   appointments: { id: string; startAt: Date; status: string; type: string }[];
   tasks: { id: string; title: string; createdAt: Date; completedAt: Date | null; dueDate: Date | null }[];
   responses: { createdAt: Date; score: number; assignment: { instrument: { code: string } } }[];
   materialAssignments: { id: string; assignedAt: Date; article: { title: string } }[];
+  proximaCita?: { id: string; startAt: Date };
   ahora: Date;
 }): TimelineEvent[] {
   const events: TimelineEvent[] = [];
 
+  if (proximaCita) {
+    events.push({
+      key: `next-${proximaCita.id}`,
+      date: proximaCita.startAt,
+      title: "Próxima cita",
+      sub: formatDate(proximaCita.startAt, "d 'de' MMM, h:mm a"),
+      tone: "upcoming",
+      icon: CalendarClock,
+    });
+  }
   for (const a of appointments) {
     if (a.startAt.getTime() > ahora.getTime()) continue;
     if (a.status === "COMPLETADA") {
-      events.push({ key: `a-${a.id}`, date: a.startAt, title: "Sesión completada", sub: "Sesión de terapia", tone: "sage" });
+      events.push({ key: `a-${a.id}`, date: a.startAt, title: "Sesión completada", sub: "Sesión de terapia", tone: "sage", icon: CalendarCheck });
     } else if (a.status === "NO_ASISTIO") {
-      events.push({ key: `a-${a.id}`, date: a.startAt, title: "No asistió a la sesión", sub: "Ausencia registrada", tone: "warm" });
+      events.push({ key: `a-${a.id}`, date: a.startAt, title: "No asistió a la sesión", sub: "Ausencia registrada", tone: "warm", icon: CalendarX });
     }
   }
   for (const t of tasks) {
     if (t.completedAt) {
-      events.push({ key: `t-${t.id}`, date: t.completedAt, title: "Tarea completada", sub: t.title, tone: "sage" });
+      events.push({ key: `t-${t.id}`, date: t.completedAt, title: "Tarea completada", sub: t.title, tone: "sage", icon: CheckCircle2 });
     } else if (t.dueDate && t.dueDate.getTime() < ahora.getTime()) {
-      events.push({ key: `t-${t.id}`, date: t.dueDate, title: "Tarea vencida", sub: t.title, tone: "warm" });
+      events.push({ key: `t-${t.id}`, date: t.dueDate, title: "Tarea vencida", sub: t.title, tone: "warm", icon: AlertCircle });
     }
   }
   for (const r of responses) {
@@ -559,16 +504,17 @@ function buildTimeline({
       title: `${r.assignment.instrument.code} respondido`,
       sub: `Puntaje ${r.score}`,
       tone: "sage",
+      icon: ClipboardCheck,
     });
   }
   for (const m of materialAssignments) {
-    events.push({ key: `m-${m.id}`, date: m.assignedAt, title: "Material asignado", sub: m.article.title, tone: "sage" });
+    events.push({ key: `m-${m.id}`, date: m.assignedAt, title: "Material asignado", sub: m.article.title, tone: "sage", icon: BookOpen });
   }
 
-  return events.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 6);
+  return events.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 7);
 }
 
-// Línea de tiempo vertical con puntos por evento.
+// Línea de tiempo vertical con un chip de ícono por evento.
 function Timeline({ events }: { events: TimelineEvent[] }) {
   if (events.length === 0) {
     return (
@@ -579,27 +525,43 @@ function Timeline({ events }: { events: TimelineEvent[] }) {
   }
   return (
     <ul className="relative">
-      {events.map((e, i) => (
-        <li
-          key={e.key}
-          className={cn(
-            "relative ml-1.5 border-l-2 pl-5",
-            i === events.length - 1 ? "border-transparent pb-0" : "border-border pb-5"
-          )}
-        >
-          <span
-            className={cn(
-              "absolute -left-[7px] top-0.5 size-3 rounded-full ring-4 ring-surface",
-              e.tone === "warm" ? "bg-accent-warm" : "bg-primary"
+      {events.map((e, i) => {
+        const Icon = e.icon;
+        const last = i === events.length - 1;
+        return (
+          <li key={e.key} className="relative flex gap-3 pb-5 last:pb-0">
+            {!last && (
+              <span className="absolute left-[15px] top-8 bottom-0 w-px bg-border" aria-hidden />
             )}
-            aria-hidden
-          />
-          <p className="text-sm font-medium text-foreground">{e.title}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {e.sub} · {formatDate(e.date, "d 'de' MMM")}
-          </p>
-        </li>
-      ))}
+            <span
+              className={cn(
+                "relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full",
+                e.tone === "warm"
+                  ? "bg-accent-warm-soft text-accent-warm"
+                  : e.tone === "upcoming"
+                    ? "bg-surface text-primary ring-1 ring-inset ring-primary/40"
+                    : "bg-primary-soft text-primary"
+              )}
+            >
+              <Icon size={15} strokeWidth={1.9} aria-hidden />
+            </span>
+            <div className="min-w-0 pt-1">
+              <p className="text-sm font-medium text-foreground">
+                {e.title}
+                {e.tone === "upcoming" && (
+                  <span className="ml-2 rounded-full bg-primary-soft px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
+                    Próxima
+                  </span>
+                )}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {e.sub}
+                {e.tone !== "upcoming" && ` · ${formatDate(e.date, "d 'de' MMM")}`}
+              </p>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
