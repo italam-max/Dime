@@ -8,6 +8,7 @@ import { ArticleFilters } from "@/components/biblioteca/article-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -66,25 +67,25 @@ export default async function BibliotecaPage({
       <ArticleFilters />
 
       {articles.length === 0 ? (
-        <Card className="items-center gap-3 py-16 text-center">
-          <BookOpen size={28} strokeWidth={1.6} className="text-muted-foreground" aria-hidden />
-          <p className="font-display text-2xl text-foreground">
-            {isFiltering ? "Sin resultados" : "Tu biblioteca está en calma"}
-          </p>
-          <p className="max-w-md text-sm text-muted-foreground">
-            {isFiltering
+        <EmptyState
+          icon={BookOpen}
+          title={isFiltering ? "Sin resultados" : "Tu biblioteca está en calma"}
+          description={
+            isFiltering
               ? "No hay artículos que coincidan con tu búsqueda. Prueba con otra palabra o categoría."
-              : "Crea tu primer artículo para empezar a compartir material psicoeducativo con tus pacientes."}
-          </p>
-          {!isFiltering && (
-            <Button asChild className="mt-2">
-              <Link href="/biblioteca/nuevo">
-                <FilePlus2 data-icon="inline-start" />
-                Nuevo artículo
-              </Link>
-            </Button>
-          )}
-        </Card>
+              : "Crea tu primer artículo para empezar a compartir material psicoeducativo con tus pacientes."
+          }
+          action={
+            !isFiltering && (
+              <Button asChild>
+                <Link href="/biblioteca/nuevo">
+                  <FilePlus2 data-icon="inline-start" />
+                  Nuevo artículo
+                </Link>
+              </Button>
+            )
+          }
+        />
       ) : (
         <Card>
           <Table>

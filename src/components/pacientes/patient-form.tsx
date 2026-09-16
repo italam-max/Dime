@@ -115,7 +115,7 @@ export function PatientForm({
     cn("text-xs text-danger", fieldError(name) ? "" : "hidden");
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6" noValidate>
+    <form onSubmit={onSubmit} className="stagger-children space-y-6" noValidate>
       {state.message && !state.success && (
         <p className="text-sm text-danger" role="alert">
           {state.message}

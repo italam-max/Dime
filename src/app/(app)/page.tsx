@@ -394,7 +394,7 @@ export default async function DashboardPage() {
 
       {/* ── Próximas citas, saldos pendientes, tareas y evaluaciones de la semana ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
               Próximas citas
@@ -462,7 +462,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
               Saldos pendientes

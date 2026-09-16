@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Search, UserPlus } from "lucide-react";
+import { Search, UserPlus, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { calculateAge, formatDate, patientFullName } from "@/lib/utils";
 import { PatientActiveBadge } from "@/components/pacientes/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -131,22 +132,25 @@ export default async function PacientesPage({
       </form>
 
       {patients.length === 0 ? (
-        <Card className="items-center gap-3 py-16 text-center">
-          <p className="font-display text-2xl text-foreground">
-            {q ? "Sin resultados" : "Aún no tienes pacientes registrados"}
-          </p>
-          <p className="max-w-md text-sm text-muted-foreground">
-            {q
+        <EmptyState
+          icon={q ? Search : Users}
+          title={q ? "Sin resultados" : "Aún no tienes pacientes registrados"}
+          description={
+            q
               ? "No encontramos pacientes que coincidan con tu búsqueda. Prueba con otro nombre o teléfono."
-              : "Empieza creando el primero. Su historial de citas y pagos quedará reunido aquí."}
-          </p>
-          <Button asChild className="mt-2">
-            <Link href="/pacientes/nuevo">
-              <UserPlus data-icon="inline-start" />
-              Nuevo paciente
-            </Link>
-          </Button>
-        </Card>
+              : "Empieza creando el primero. Su historial de citas y pagos quedará reunido aquí."
+          }
+          action={
+            !q && (
+              <Button asChild>
+                <Link href="/pacientes/nuevo">
+                  <UserPlus data-icon="inline-start" />
+                  Nuevo paciente
+                </Link>
+              </Button>
+            )
+          }
+        />
       ) : (
         <Card>
           <Table>
