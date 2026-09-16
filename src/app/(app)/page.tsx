@@ -297,7 +297,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="space-y-8">
+    <div className="animate-fade-in space-y-8">
       {/* ── Bienvenida ── */}
       <div>
         <h1 className="font-display text-4xl font-semibold text-foreground">Panel</h1>
