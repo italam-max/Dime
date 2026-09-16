@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getPortalPatient } from "@/lib/auth";
+import { Logo } from "@/components/brand/logo";
 import { logoutPortal } from "@/app/(portal)/portal/acciones";
 
 // Shell del portal del paciente: sin sidebar, columna centrada y mobile-first.
@@ -10,11 +11,8 @@ export default async function PortalLayout({ children }: { children: React.React
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex w-full max-w-xl items-center justify-between px-6 py-5">
-        <Link
-          href="/portal"
-          className="font-display text-2xl font-semibold text-foreground"
-        >
-          Dime
+        <Link href="/portal" aria-label="Dime · Portal" className="inline-flex">
+          <Logo size={30} animated wordmarkClassName="text-2xl" />
         </Link>
         {patient && (
           <form action={logoutPortal}>

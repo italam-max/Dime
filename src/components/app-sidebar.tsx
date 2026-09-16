@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpen, CalendarDays, LayoutDashboard, LogOut, Users, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Logo } from "@/components/brand/logo";
 import { logout } from "@/app/(auth)/actions";
 
 const NAV_ITEMS = [
@@ -24,11 +25,8 @@ export function AppSidebar() {
   return (
     <aside className="fixed inset-y-0 left-0 flex w-60 flex-col border-r border-border bg-surface">
       <div className="px-6 py-6">
-        <Link
-          href="/"
-          className="font-display text-3xl font-semibold text-foreground"
-        >
-          Dime
+        <Link href="/" aria-label="Dime · Inicio" className="inline-flex">
+          <Logo size={34} animated wordmarkClassName="text-3xl" />
         </Link>
       </div>
 

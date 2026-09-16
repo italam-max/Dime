@@ -17,6 +17,8 @@
   --color-primary: #5e7a6b; /* salvia */
   --color-primary-foreground: #faf9f6;
   --color-primary-soft: #e9efea;
+  --color-primary-light: #9db8a4; /* salvia clara (hoja del logo) */
+  --color-petal: #ecd9d1; /* blush del pétalo (logo, acento cálido muy suave) */
 
   --color-accent-warm: #b08968; /* terracota suave (saldo pendiente, avisos) */
   --color-accent-warm-soft: #f4ebe2;
@@ -45,6 +47,139 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+}
+
+/* --- Logo Dime: animaciones (respetan prefers-reduced-motion) --- */
+@keyframes logo-grow {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes logo-leaf-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4.5deg);
+  }
+}
+
+@keyframes logo-head-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  70% {
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes logo-draw {
+  from {
+    stroke-dashoffset: 60;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.logo-mark {
+  transform-origin: center;
+}
+
+.logo-mark--animated {
+  animation: logo-grow 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Hojas: vaivén perceptible, hoja y pétalo desfasados */
+.logo-mark .logo-leaf {
+  transform-box: fill-box;
+  transform-origin: bottom center;
+}
+
+.logo-mark--animated .logo-leaf {
+  animation: logo-leaf-sway 7s ease-in-out infinite;
+}
+
+.logo-mark--animated .logo-leaf--petal {
+  animation-duration: 8.5s;
+  animation-direction: reverse;
+}
+
+/* Figura persona/brote: la cabeza aparece y los brazos se dibujan */
+.logo-mark .logo-sprout .logo-stroke {
+  stroke-dasharray: 60;
+}
+
+.logo-mark--animated .logo-sprout circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: logo-head-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.45s both;
+}
+
+.logo-mark--animated .logo-sprout .logo-stroke {
+  animation: logo-draw 0.6s ease-out 0.2s both;
+}
+
+/* Nervadura de la hoja: se dibuja al entrar */
+.logo-mark .logo-vein {
+  stroke-dasharray: 60;
+}
+
+.logo-mark--animated .logo-vein {
+  animation: logo-draw 0.7s ease-out 0.15s both;
+}
+
+/* Acentos botánicos del wordmark: hojita de la "i" y brote sobre la palabra */
+@keyframes logo-accent-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.logo-sprig,
+.logo-tittle {
+  transform-origin: bottom center;
+}
+
+.logo-word--animated .logo-tittle {
+  animation: logo-accent-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.5s both;
+}
+
+.logo-word--animated .logo-sprig {
+  animation: logo-accent-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.65s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-mark--animated,
+  .logo-mark--animated .logo-leaf,
+  .logo-mark--animated .logo-sprout circle,
+  .logo-mark--animated .logo-sprout .logo-stroke,
+  .logo-mark--animated .logo-vein,
+  .logo-word--animated .logo-tittle,
+  .logo-word--animated .logo-sprig {
+    animation: none;
+  }
+  .logo-mark .logo-sprout .logo-stroke,
+  .logo-mark .logo-vein {
+    stroke-dasharray: none;
   }
 }
 
