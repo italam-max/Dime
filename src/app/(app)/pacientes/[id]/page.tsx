@@ -28,6 +28,7 @@ import { PortalWidget, type PortalAccessStatus } from "@/components/pacientes/po
 import { TaskToggleButton } from "@/components/pacientes/task-toggle-button";
 import { AssessmentsSection } from "@/components/pacientes/assessments-section";
 import { MaterialSection } from "@/components/pacientes/material-section";
+import { NewAppointmentDialog } from "@/components/agenda/new-appointment-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -161,6 +162,15 @@ export default async function PacienteDetallePage({
             )}
           </div>
           <div className="flex items-center gap-2">
+            <NewAppointmentDialog
+              lockedPatient={{
+                id: patient.id,
+                nombre: patient.nombre,
+                apellidos: patient.apellidos,
+              }}
+              triggerLabel="Agendar cita"
+              triggerSize="sm"
+            />
             <Button asChild variant="outline" size="sm">
               <Link href={`/pacientes/${patient.id}/editar`}>
                 <Pencil data-icon="inline-start" />
@@ -176,7 +186,7 @@ export default async function PacienteDetallePage({
           <StatTile
             icon={CalendarClock}
             label="Próxima cita"
-            value={proximaCita ? formatDate(proximaCita.startAt, "d 'de' MMM") : "Sin agendar"}
+            value={proximaCita ? formatDate(proximaCita.startAt, "d MMM") : "Sin agendar"}
             sub={proximaCita ? formatDate(proximaCita.startAt, "h:mm a") : undefined}
             muted={!proximaCita}
           />
@@ -191,6 +201,7 @@ export default async function PacienteDetallePage({
             label="Asistencia"
             value={asistencia !== null ? `${asistencia}%` : "—"}
             sub={asistencia !== null ? `${sesionesCompletadas}/${sesionesCompletadas + noAsistio}` : "sin datos"}
+            accent={asistencia !== null && asistencia < 60}
           />
           <StatTile
             icon={Wallet}
@@ -463,29 +474,29 @@ function StatTile({
   muted?: boolean;
 }) {
   return (
-    <div className="flex items-start gap-3 p-4 sm:p-5">
-      <span
-        className={cn(
-          "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg",
-          accent ? "bg-accent-warm-soft text-accent-warm" : "bg-primary-soft text-primary"
-        )}
-      >
-        <Icon size={16} strokeWidth={1.8} aria-hidden />
-      </span>
-      <div className="min-w-0">
-        <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          {label}
-        </p>
-        <p
+    <div className="p-4 sm:p-5">
+      <div className="flex items-center gap-2">
+        <span
           className={cn(
-            "mt-1 truncate text-lg font-semibold tabular-nums",
-            accent ? "text-accent-warm" : muted ? "text-muted-foreground" : "text-foreground"
+            "flex size-6 shrink-0 items-center justify-center rounded-md",
+            accent ? "bg-accent-warm-soft text-accent-warm" : "bg-primary-soft text-primary"
           )}
         >
-          {value}
+          <Icon size={14} strokeWidth={1.9} aria-hidden />
+        </span>
+        <p className="truncate text-[0.7rem] font-semibold uppercase tracking-widest text-muted-foreground">
+          {label}
         </p>
-        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
       </div>
+      <p
+        className={cn(
+          "mt-2 truncate text-2xl font-semibold leading-none tabular-nums",
+          accent ? "text-accent-warm" : muted ? "text-muted-foreground" : "text-foreground"
+        )}
+      >
+        {value}
+      </p>
+      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -510,7 +521,7 @@ function SectionCard({
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
           <Icon size={18} strokeWidth={1.8} aria-hidden />
         </span>
-        <CardTitle className="flex-1 text-base">{title}</CardTitle>
+        <CardTitle className="flex-1 text-lg">{title}</CardTitle>
         {action}
       </CardHeader>
       <CardContent className={contentClassName}>{children}</CardContent>
