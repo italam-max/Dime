@@ -35,6 +35,7 @@ import { TaskToggleButton } from "@/components/pacientes/task-toggle-button";
 import { AssessmentsSection } from "@/components/pacientes/assessments-section";
 import { MaterialSection } from "@/components/pacientes/material-section";
 import { NewAppointmentDialog } from "@/components/agenda/new-appointment-dialog";
+import { AddTaskDialog } from "@/components/pacientes/add-task-dialog";
 import { FichaTabs } from "@/components/pacientes/ficha-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -398,16 +399,20 @@ export default async function PacienteDetallePage({
             icon={ListTodo}
             title="Tareas entre sesiones"
             action={
-              cumplimiento !== null ? (
-                <p className="text-xs text-muted-foreground">
-                  {cumplimiento}% de cumplimiento · 4 semanas
-                </p>
-              ) : undefined
+              <div className="flex items-center gap-3">
+                {cumplimiento !== null && (
+                  <p className="hidden text-xs text-muted-foreground sm:block">
+                    {cumplimiento}% · 4 sem
+                  </p>
+                )}
+                <AddTaskDialog patientId={patient.id} />
+              </div>
             }
           >
             {tareasActivas.length === 0 && tareasHechasRecientes.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Aún no hay tareas registradas. Se crean al completar una sesión con acuerdos.
+                Aún no hay tareas. Agrégalas con “Agregar tarea” o al completar una sesión con
+                acuerdos en la agenda.
               </p>
             ) : (
               <ul className="divide-y divide-border">

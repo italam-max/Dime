@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { patientSchema } from "@/lib/validations/patient";
+import { taskSchema } from "@/lib/validations/task";
 import { prisma } from "@/lib/prisma";
 
 // Estado devuelto por las actions de pacientes al cliente (serializable).
@@ -101,6 +102,35 @@ export async function togglePatientActive(
 
   revalidatePath("/pacientes");
   revalidatePath(`/pacientes/${patientId}`);
+}
+
+// Crea una tarea entre sesiones directamente desde la ficha (sin sesión
+// asociada). Visible para el paciente en su portal.
+export async function createPatientTask(
+  patientId: string,
+  input: { title: string; dueDate?: string }
+): Promise<{ ok: boolean; message?: string }> {
+  const parsed = taskSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    select: { id: true },
+  });
+  if (!patient) return { ok: false, message: "No se encontró el paciente." };
+
+  await prisma.task.create({
+    data: {
+      patientId,
+      title: parsed.data.title.trim(),
+      dueDate: parsed.data.dueDate ? new Date(`${parsed.data.dueDate}T12:00:00`) : null,
+    },
+  });
+
+  revalidatePath(`/pacientes/${patientId}`);
+  return { ok: true, message: "Tarea agregada" };
 }
 
 // Marca una tarea como hecha (done = true) o la reabre (done = false).
