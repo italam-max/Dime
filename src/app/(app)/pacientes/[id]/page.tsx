@@ -32,6 +32,7 @@ import {
 import { ToggleActiveButton } from "@/components/pacientes/toggle-active-button";
 import { PortalWidget, type PortalAccessStatus } from "@/components/pacientes/portal-widget";
 import { TaskToggleButton } from "@/components/pacientes/task-toggle-button";
+import { TaskReviewDialog } from "@/components/pacientes/task-review-dialog";
 import { AssessmentsSection } from "@/components/pacientes/assessments-section";
 import { MaterialSection } from "@/components/pacientes/material-section";
 import { NewAppointmentDialog } from "@/components/agenda/new-appointment-dialog";
@@ -419,7 +420,7 @@ export default async function PacienteDetallePage({
                 {tareasActivas.map((task) => (
                   <li
                     key={task.id}
-                    className="flex items-center justify-between gap-4 py-3 first:pt-0"
+                    className="flex items-start justify-between gap-3 py-3 first:pt-0"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{task.title}</p>
@@ -429,22 +430,40 @@ export default async function PacienteDetallePage({
                           : "Sin fecha límite"}
                         {task.appointmentId ? " · Acordada en sesión" : ""}
                       </p>
+                      {task.therapistNote && <TaskNotePreview note={task.therapistNote} />}
                     </div>
-                    <TaskToggleButton taskId={task.id} done={false} title={task.title} />
+                    <div className="flex shrink-0 items-center gap-1">
+                      <TaskReviewDialog
+                        taskId={task.id}
+                        title={task.title}
+                        note={task.therapistNote}
+                        meta={taskMeta(task)}
+                      />
+                      <TaskToggleButton taskId={task.id} done={false} title={task.title} />
+                    </div>
                   </li>
                 ))}
                 {tareasHechasRecientes.map((task) => (
                   <li
                     key={task.id}
-                    className="flex items-center justify-between gap-4 py-3 text-muted-foreground"
+                    className="flex items-start justify-between gap-3 py-3 text-muted-foreground"
                   >
                     <div className="min-w-0">
                       <p className="text-sm line-through">{task.title}</p>
                       <p className="mt-0.5 text-xs">
                         Hecha el {formatDate(task.completedAt!, "d 'de' MMM yyyy")}
                       </p>
+                      {task.therapistNote && <TaskNotePreview note={task.therapistNote} />}
                     </div>
-                    <TaskToggleButton taskId={task.id} done title={task.title} />
+                    <div className="flex shrink-0 items-center gap-1">
+                      <TaskReviewDialog
+                        taskId={task.id}
+                        title={task.title}
+                        note={task.therapistNote}
+                        meta={taskMeta(task)}
+                      />
+                      <TaskToggleButton taskId={task.id} done title={task.title} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -709,5 +728,22 @@ function InfoItem({ label, value }: { label: string; value: string | null }) {
       </p>
       <p className="mt-1 text-sm text-foreground">{value ?? "—"}</p>
     </div>
+  );
+}
+
+// Resumen de fechas de una tarea para el diálogo de revisión.
+function taskMeta(task: { createdAt: Date; dueDate: Date | null; completedAt: Date | null }): string {
+  const parts = [`Asignada el ${formatDate(task.createdAt, "d 'de' MMM yyyy")}`];
+  if (task.dueDate) parts.push(`vence el ${formatDate(task.dueDate, "d 'de' MMM yyyy")}`);
+  if (task.completedAt) parts.push(`hecha el ${formatDate(task.completedAt, "d 'de' MMM yyyy")}`);
+  return parts.join(" · ");
+}
+
+// Vista previa de la nota del terapeuta bajo una tarea.
+function TaskNotePreview({ note }: { note: string }) {
+  return (
+    <p className="mt-1.5 border-l-2 border-primary/40 pl-2 text-xs italic text-muted-foreground">
+      {note}
+    </p>
   );
 }

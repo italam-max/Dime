@@ -85,6 +85,8 @@ model Task {
   title         String
   dueDate       DateTime?
   completedAt   DateTime?
+  therapistNote String? // evaluación/observaciones del terapeuta sobre la tarea
+  reviewedAt    DateTime? // cuándo el terapeuta revisó/anotó por última vez
   createdAt     DateTime     @default(now())
 
   @@index([patientId, completedAt])

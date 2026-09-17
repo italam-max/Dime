@@ -133,6 +133,34 @@ export async function createPatientTask(
   return { ok: true, message: "Tarea agregada" };
 }
 
+// Guarda (o borra) la nota de evaluación del terapeuta sobre una tarea.
+export async function saveTaskNote(
+  taskId: string,
+  note: string
+): Promise<{ ok: boolean; message?: string }> {
+  const trimmed = note.trim();
+  if (trimmed.length > 2000) {
+    return { ok: false, message: "La nota es demasiado larga (máximo 2000 caracteres)." };
+  }
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { patientId: true },
+  });
+  if (!task) return { ok: false, message: "No se encontró la tarea." };
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      therapistNote: trimmed === "" ? null : trimmed,
+      reviewedAt: trimmed === "" ? null : new Date(),
+    },
+  });
+
+  revalidatePath(`/pacientes/${task.patientId}`);
+  return { ok: true, message: trimmed === "" ? "Nota eliminada" : "Nota guardada" };
+}
+
 // Marca una tarea como hecha (done = true) o la reabre (done = false).
 export async function toggleTaskDone(
   taskId: string,
