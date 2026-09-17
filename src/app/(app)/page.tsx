@@ -39,6 +39,13 @@ export const metadata: Metadata = {
   title: "Panel · Dime",
 };
 
+function saludoPara(date: Date): string {
+  const hour = date.getHours();
+  if (hour < 12) return "Buenos días";
+  if (hour < 19) return "Buenas tardes";
+  return "Buenas noches";
+}
+
 const ETIQUETA_ESTADO_CITA: Record<string, string> = {
   PENDIENTE: "Pendiente",
   CONFIRMADA: "Confirmada",
@@ -300,18 +307,16 @@ export default async function DashboardPage() {
     <div className="animate-fade-in space-y-8">
       {/* ── Bienvenida ── */}
       <div>
-        <h1 className="font-display text-4xl font-semibold text-foreground">Panel</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {user.name.split(" ")[0]}, este es el resumen de tu consultorio. Hoy es{" "}
-          <span className="capitalize">
-            {formatDate(ahora, "EEEE, d 'de' MMMM 'de' yyyy")}
-          </span>
-          .
+        <h1 className="font-display text-4xl font-semibold text-foreground">
+          {saludoPara(ahora)}, {user.name.split(" ")[0]}
+        </h1>
+        <p className="mt-2 text-sm capitalize text-muted-foreground">
+          {formatDate(ahora, "EEEE, d 'de' MMMM 'de' yyyy")}
         </p>
       </div>
 
       {/* ── KPIs del mes ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="stagger-children grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Citas del mes"
           value={String(citasMes)}
@@ -394,7 +399,7 @@ export default async function DashboardPage() {
 
       {/* ── Próximas citas, saldos pendientes, tareas y evaluaciones de la semana ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
               Próximas citas
@@ -462,7 +467,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="hover-lift">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
               Saldos pendientes

@@ -42,10 +42,21 @@ const DURATIONS = [
 ];
 
 // Botón "Nueva cita" + diálogo con el formulario de alta.
-export function NewAppointmentDialog({ patients }: { patients: AgendaPatient[] }) {
+// Con `lockedPatient` el paciente queda fijo (útil desde su ficha).
+export function NewAppointmentDialog({
+  patients = [],
+  lockedPatient,
+  triggerLabel = "Nueva cita",
+  triggerSize = "default",
+}: {
+  patients?: AgendaPatient[];
+  lockedPatient?: AgendaPatient;
+  triggerLabel?: string;
+  triggerSize?: "sm" | "default";
+}) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState(createAppointment, initialState);
-  const [patientId, setPatientId] = useState("");
+  const [patientId, setPatientId] = useState(lockedPatient?.id ?? "");
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [duration, setDuration] = useState("60");
   const [type, setType] = useState("PRESENCIAL");
@@ -66,7 +77,7 @@ export function NewAppointmentDialog({ patients }: { patients: AgendaPatient[] }
         setOpen(next);
         if (next) {
           // Reinicia el formulario cada vez que se abre.
-          setPatientId("");
+          setPatientId(lockedPatient?.id ?? "");
           setDate(new Date());
           setDuration("60");
           setType("PRESENCIAL");
@@ -74,16 +85,18 @@ export function NewAppointmentDialog({ patients }: { patients: AgendaPatient[] }
       }}
     >
       <DialogTrigger asChild>
-        <Button>
+        <Button size={triggerSize}>
           <Plus data-icon="inline-start" />
-          Nueva cita
+          {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Agendar una cita</DialogTitle>
           <DialogDescription>
-            Elige paciente, fecha y hora. Revisaremos que no se cruce con otra sesión.
+            {lockedPatient
+              ? `Para ${patientFullName(lockedPatient)}. Elige fecha y hora; revisaremos que no se cruce con otra sesión.`
+              : "Elige paciente, fecha y hora. Revisaremos que no se cruce con otra sesión."}
           </DialogDescription>
         </DialogHeader>
 
@@ -93,24 +106,36 @@ export function NewAppointmentDialog({ patients }: { patients: AgendaPatient[] }
           <input type="hidden" name="duration" value={duration} />
           <input type="hidden" name="type" value={type} />
 
-          <div className="space-y-2">
-            <Label>Paciente</Label>
-            <Select value={patientId} onValueChange={setPatientId}>
-              <SelectTrigger className="w-full" aria-invalid={Boolean(state.fieldErrors?.patientId)}>
-                <SelectValue placeholder="Selecciona un paciente" />
-              </SelectTrigger>
-              <SelectContent>
-                {patients.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {patientFullName(p)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {state.fieldErrors?.patientId && (
-              <p className="text-xs text-danger">{state.fieldErrors.patientId[0]}</p>
-            )}
-          </div>
+          {lockedPatient ? (
+            <div className="space-y-2">
+              <Label>Paciente</Label>
+              <div className="flex items-center rounded-control border border-border bg-surface-muted px-3 py-2 text-sm font-medium text-foreground">
+                {patientFullName(lockedPatient)}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Paciente</Label>
+              <Select value={patientId} onValueChange={setPatientId}>
+                <SelectTrigger
+                  className="w-full"
+                  aria-invalid={Boolean(state.fieldErrors?.patientId)}
+                >
+                  <SelectValue placeholder="Selecciona un paciente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {patientFullName(p)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {state.fieldErrors?.patientId && (
+                <p className="text-xs text-danger">{state.fieldErrors.patientId[0]}</p>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">

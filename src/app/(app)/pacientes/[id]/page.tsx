@@ -1,39 +1,63 @@
 import type { Metadata } from "next";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  CalendarCheck,
+  CalendarClock,
+  CalendarX,
+  CheckCircle2,
+  ClipboardCheck,
+  ClipboardList,
+  Clock,
+  ListTodo,
+  Lock,
+  Pencil,
+  Smartphone,
+  TrendingDown,
+  TrendingUp,
+  UserRound,
+  Wallet,
+} from "lucide-react";
 import { subWeeks } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { calculateAge, formatCurrency, formatDate, patientFullName } from "@/lib/utils";
 import {
-  AppointmentStatusBadge,
-  AppointmentTypeLabel,
   PatientActiveBadge,
   PaymentStatusBadge,
 } from "@/components/pacientes/status-badge";
 import { ToggleActiveButton } from "@/components/pacientes/toggle-active-button";
 import { PortalWidget, type PortalAccessStatus } from "@/components/pacientes/portal-widget";
 import { TaskToggleButton } from "@/components/pacientes/task-toggle-button";
+import { TaskReviewDialog } from "@/components/pacientes/task-review-dialog";
 import { AssessmentsSection } from "@/components/pacientes/assessments-section";
 import { MaterialSection } from "@/components/pacientes/material-section";
+import { NewAppointmentDialog } from "@/components/agenda/new-appointment-dialog";
+import { AddTaskDialog } from "@/components/pacientes/add-task-dialog";
+import { FichaTabs } from "@/components/pacientes/ficha-tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Ficha del paciente · Dime",
 };
 
-// Ficha clínica del paciente: datos generales, motivo de consulta, notas
-// internas e historial completo de citas y pagos.
+type TimelineEvent = {
+  key: string;
+  date: Date;
+  title: string;
+  sub: string;
+  tone: "sage" | "warm" | "upcoming";
+  icon: LucideIcon;
+};
+
+// Ficha clínica: identidad y signos vitales en el encabezado; el resto del
+// trabajo agrupado por intención en pestañas (Resumen, Evolución,
+// Seguimiento, Historial).
 export default async function PacienteDetallePage({
   params,
 }: {
@@ -52,22 +76,46 @@ export default async function PacienteDetallePage({
 
   if (!patient) notFound();
 
+  const ahora = new Date();
   const age = calculateAge(patient.fechaNacimiento);
-  // Saldo pendiente: suma de pagos que no están PAGADOS (pendientes o parciales).
+
   const saldoPendiente = patient.payments
     .filter((payment) => payment.status !== "PAGADO")
     .reduce((sum, payment) => sum + payment.amount, 0);
 
-  // Acceso al portal: estado de la invitación y último consentimiento aceptado.
-  const [portalAccess, portalConsent] = await Promise.all([
+  const proximaCita = patient.appointments
+    .filter((a) => a.startAt.getTime() > ahora.getTime() && a.status !== "CANCELADA")
+    .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())[0];
+  const sesionesCompletadas = patient.appointments.filter((a) => a.status === "COMPLETADA").length;
+  const noAsistio = patient.appointments.filter((a) => a.status === "NO_ASISTIO").length;
+  const asistencia =
+    sesionesCompletadas + noAsistio > 0
+      ? Math.round((sesionesCompletadas / (sesionesCompletadas + noAsistio)) * 100)
+      : null;
+
+  const [portalAccess, portalConsent, responses, materialAssignments] = await Promise.all([
     prisma.portalAccess.findUnique({ where: { patientId: patient.id } }),
     prisma.consent.findFirst({
       where: { patientId: patient.id, type: "PORTAL" },
       orderBy: { acceptedAt: "desc" },
     }),
+    prisma.assessmentResponse.findMany({
+      where: { assignment: { patientId: patient.id } },
+      orderBy: { createdAt: "asc" },
+      select: {
+        createdAt: true,
+        score: true,
+        assignment: { select: { instrument: { select: { code: true, name: true } } } },
+      },
+    }),
+    prisma.articleAssignment.findMany({
+      where: { patientId: patient.id },
+      orderBy: { assignedAt: "desc" },
+      take: 4,
+      include: { article: { select: { title: true } } },
+    }),
   ]);
 
-  const ahora = new Date();
   let portalStatus: PortalAccessStatus = "none";
   if (portalAccess?.revokedAt) portalStatus = "revoked";
   else if (portalAccess?.acceptedAt) portalStatus = "active";
@@ -75,7 +123,6 @@ export default async function PacienteDetallePage({
     portalStatus = "pending";
   }
 
-  // Tareas: activas y % de cumplimiento de las últimas 4 semanas.
   const tareasActivas = patient.tasks.filter((task) => task.completedAt === null);
   const tareasHechasRecientes = patient.tasks
     .filter((task) => task.completedAt !== null)
@@ -95,6 +142,46 @@ export default async function PacienteDetallePage({
       ? Math.round((tareasCompletadasMes / tareasCreadasMes) * 100)
       : null;
 
+  // Evolución: instrumento con más mediciones (≥2), delta de las dos últimas.
+  // En escalas de síntomas un descenso es mejora (salvia); un alza, atención.
+  const porInstrumento = new Map<string, { name: string; scores: number[] }>();
+  for (const r of responses) {
+    const code = r.assignment.instrument.code;
+    const entry = porInstrumento.get(code) ?? { name: r.assignment.instrument.name, scores: [] };
+    entry.scores.push(r.score);
+    porInstrumento.set(code, entry);
+  }
+  let trend: { code: string; delta: number; last: number } | null = null;
+  for (const [code, { scores }] of porInstrumento) {
+    if (scores.length >= 2 && (trend === null || scores.length > porInstrumento.get(trend.code)!.scores.length)) {
+      trend = { code, delta: scores[scores.length - 1] - scores[scores.length - 2], last: scores[scores.length - 1] };
+    }
+  }
+
+  const timeline = buildTimeline({
+    appointments: patient.appointments,
+    tasks: patient.tasks,
+    responses,
+    materialAssignments,
+    proximaCita,
+    ahora,
+  });
+
+  const pagosRecientes = patient.payments.slice(0, 4);
+
+  const contactChips = [
+    age !== null ? `${age} años` : null,
+    patient.sexo,
+    patient.telefono,
+    patient.email,
+  ].filter(Boolean) as string[];
+
+  const tabs = [
+    { id: "resumen", label: "Resumen", icon: "dashboard" as const },
+    { id: "evolucion", label: "Evolución", icon: "activity" as const },
+    { id: "seguimiento", label: "Seguimiento", icon: "list" as const },
+  ];
+
   return (
     <div className="animate-fade-in space-y-6">
       <Link
@@ -105,303 +192,531 @@ export default async function PacienteDetallePage({
         Volver a pacientes
       </Link>
 
-      {/* Encabezado: identidad del paciente y acciones principales */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="font-display text-4xl font-semibold text-foreground">
-              {patientFullName(patient)}
-            </h1>
-            <PatientActiveBadge isActive={patient.isActive} />
+      {/* ── Hero: identidad + signos vitales ── */}
+      <header className="overflow-hidden rounded-card bg-surface shadow-soft ring-1 ring-foreground/5">
+        <div className="flex flex-wrap items-start gap-5 p-6">
+          <Monogram name={patient.nombre} last={patient.apellidos} />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="font-display text-4xl font-semibold leading-none text-foreground">
+                {patientFullName(patient)}
+              </h1>
+              <PatientActiveBadge isActive={patient.isActive} />
+            </div>
+            {contactChips.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {contactChips.map((chip) => (
+                  <li
+                    key={chip}
+                    className="rounded-full bg-surface-muted px-3 py-1 text-xs text-muted-foreground"
+                  >
+                    {chip}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {[
-              age !== null ? `${age} años` : null,
-              patient.telefono,
-              patient.email,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+          <div className="flex items-center gap-2">
+            <NewAppointmentDialog
+              lockedPatient={{
+                id: patient.id,
+                nombre: patient.nombre,
+                apellidos: patient.apellidos,
+              }}
+              triggerLabel="Agendar cita"
+              triggerSize="sm"
+            />
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/pacientes/${patient.id}/editar`}>
+                <Pencil data-icon="inline-start" />
+                Editar
+              </Link>
+            </Button>
+            <ToggleActiveButton patientId={patient.id} isActive={patient.isActive} />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/pacientes/${patient.id}/editar`}>
-              <Pencil data-icon="inline-start" />
-              Editar
-            </Link>
-          </Button>
-          <ToggleActiveButton patientId={patient.id} isActive={patient.isActive} />
-        </div>
-      </div>
 
-      {/* Saldo pendiente: terracota suave cuando hay deuda, neutro cuando no. */}
-      <Card
+        {/* Signos vitales: anillos + cifras clave */}
+        <div className="border-t border-border p-6">
+          <div className="flex items-center gap-8">
+            <ProgressRing value={asistencia} label="Asistencia" tone="var(--color-primary)" />
+            <ProgressRing value={cumplimiento} label="Adherencia" tone="var(--color-primary-light)" />
+          </div>
+          <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
+            <StatTile
+              icon={CalendarClock}
+              label="Próxima cita"
+              value={proximaCita ? formatDate(proximaCita.startAt, "d MMM") : "Sin agendar"}
+              sub={proximaCita ? formatDate(proximaCita.startAt, "h:mm a") : undefined}
+              muted={!proximaCita}
+            />
+            <StatTile
+              icon={CheckCircle2}
+              label="Sesiones"
+              value={String(sesionesCompletadas)}
+              sub="completadas"
+            />
+            <StatTile
+              icon={trend && trend.delta > 0 ? TrendingUp : TrendingDown}
+              label="Evolución"
+              value={trend ? `${trend.delta > 0 ? "+" : ""}${trend.delta}` : "—"}
+              sub={trend ? `${trend.code} · ${trend.delta <= 0 ? "mejora" : "atención"}` : "sin datos"}
+              accent={Boolean(trend && trend.delta > 0)}
+            />
+            <StatTile
+              icon={Wallet}
+              label="Saldo"
+              value={formatCurrency(saldoPendiente)}
+              sub={saldoPendiente > 0 ? "pendiente" : "al corriente"}
+              accent={saldoPendiente > 0}
+            />
+          </dl>
+        </div>
+      </header>
+
+      {/* ── Pestañas ── */}
+      <FichaTabs tabs={tabs}>
+        {/* Resumen */}
+        <div data-tab="resumen" className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <SectionCard icon={ClipboardList} title="Motivo de consulta y antecedentes">
+              {patient.antecedentes ? (
+                <p className="whitespace-pre-line text-sm leading-relaxed">{patient.antecedentes}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Aún no se registran antecedentes. Puedes agregarlos desde Editar.
+                </p>
+              )}
+            </SectionCard>
+
+            <SectionCard icon={Clock} title="Actividad reciente">
+              <Timeline events={timeline} />
+            </SectionCard>
+
+            <SectionCard icon={Lock} title="Notas internas">
+              {patient.notasInternas ? (
+                <p className="whitespace-pre-line text-sm leading-relaxed">{patient.notasInternas}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Sin notas internas. Solo tú puedes ver esta sección.
+                </p>
+              )}
+            </SectionCard>
+          </div>
+
+          <div className="space-y-6">
+            <SectionCard icon={UserRound} title="Información general">
+              <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-1">
+                <InfoItem
+                  label="Fecha de nacimiento"
+                  value={
+                    patient.fechaNacimiento
+                      ? formatDate(patient.fechaNacimiento, "d 'de' MMM yyyy")
+                      : null
+                  }
+                />
+                <InfoItem label="Sexo" value={patient.sexo} />
+                <InfoItem label="Dirección" value={patient.direccion} />
+                <InfoItem label="Contacto de emergencia" value={patient.contactoEmergencia} />
+              </div>
+            </SectionCard>
+
+            <SectionCard
+              icon={Smartphone}
+              title="Portal del paciente"
+              action={
+                portalStatus === "active" && portalConsent ? (
+                  <p className="text-xs text-muted-foreground">
+                    Consentimiento el {formatDate(portalConsent.acceptedAt, "d MMM yyyy")}
+                  </p>
+                ) : undefined
+              }
+            >
+              <PortalWidget
+                patientId={patient.id}
+                status={portalStatus}
+                acceptedAt={portalAccess?.acceptedAt ?? null}
+                expiresAt={portalAccess?.expiresAt ?? null}
+              />
+            </SectionCard>
+
+            <SectionCard icon={Wallet} title="Pagos">
+              <div
+                className={cn(
+                  "flex items-baseline justify-between rounded-control px-4 py-3",
+                  saldoPendiente > 0 ? "bg-accent-warm-soft" : "bg-surface-muted"
+                )}
+              >
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {saldoPendiente > 0 ? "Saldo pendiente" : "Al corriente"}
+                </span>
+                <span
+                  className={cn(
+                    "text-xl font-semibold tabular-nums",
+                    saldoPendiente > 0 ? "text-accent-warm" : "text-foreground"
+                  )}
+                >
+                  {formatCurrency(saldoPendiente)}
+                </span>
+              </div>
+              {pagosRecientes.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Aún no tiene pagos registrados.
+                </p>
+              ) : (
+                <ul className="mt-2 divide-y divide-border">
+                  {pagosRecientes.map((payment) => (
+                    <li key={payment.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {payment.concept ?? "Sesión"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {formatDate(payment.paidAt ?? payment.createdAt, "d 'de' MMM yyyy")}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="text-sm font-semibold tabular-nums text-foreground">
+                          {formatCurrency(payment.amount)}
+                        </span>
+                        <PaymentStatusBadge status={payment.status} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
+          </div>
+        </div>
+
+        {/* Evolución */}
+        <div data-tab="evolucion">
+          <AssessmentsSection patientId={patient.id} />
+        </div>
+
+        {/* Seguimiento */}
+        <div data-tab="seguimiento" className="space-y-6">
+          <SectionCard
+            icon={ListTodo}
+            title="Tareas entre sesiones"
+            action={
+              <div className="flex items-center gap-3">
+                {cumplimiento !== null && (
+                  <p className="hidden text-xs text-muted-foreground sm:block">
+                    {cumplimiento}% · 4 sem
+                  </p>
+                )}
+                <AddTaskDialog patientId={patient.id} />
+              </div>
+            }
+          >
+            {tareasActivas.length === 0 && tareasHechasRecientes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Aún no hay tareas. Agrégalas con “Agregar tarea” o al completar una sesión con
+                acuerdos en la agenda.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {tareasActivas.map((task) => (
+                  <li
+                    key={task.id}
+                    className="flex items-start justify-between gap-3 py-3 first:pt-0"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground">{task.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {task.dueDate
+                          ? `Para el ${formatDate(task.dueDate, "d 'de' MMM yyyy")}`
+                          : "Sin fecha límite"}
+                        {task.appointmentId ? " · Acordada en sesión" : ""}
+                      </p>
+                      {task.therapistNote && <TaskNotePreview note={task.therapistNote} />}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <TaskReviewDialog
+                        taskId={task.id}
+                        title={task.title}
+                        note={task.therapistNote}
+                        meta={taskMeta(task)}
+                      />
+                      <TaskToggleButton taskId={task.id} done={false} title={task.title} />
+                    </div>
+                  </li>
+                ))}
+                {tareasHechasRecientes.map((task) => (
+                  <li
+                    key={task.id}
+                    className="flex items-start justify-between gap-3 py-3 text-muted-foreground"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm line-through">{task.title}</p>
+                      <p className="mt-0.5 text-xs">
+                        Hecha el {formatDate(task.completedAt!, "d 'de' MMM yyyy")}
+                      </p>
+                      {task.therapistNote && <TaskNotePreview note={task.therapistNote} />}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <TaskReviewDialog
+                        taskId={task.id}
+                        title={task.title}
+                        note={task.therapistNote}
+                        meta={taskMeta(task)}
+                      />
+                      <TaskToggleButton taskId={task.id} done title={task.title} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+
+          <MaterialSection patientId={patient.id} />
+        </div>
+      </FichaTabs>
+    </div>
+  );
+}
+
+// Reúne los eventos recientes (pasados) de distintas fuentes para la línea
+// de tiempo, ordenados del más reciente al más antiguo.
+function buildTimeline({
+  appointments,
+  tasks,
+  responses,
+  materialAssignments,
+  proximaCita,
+  ahora,
+}: {
+  appointments: { id: string; startAt: Date; status: string; type: string }[];
+  tasks: { id: string; title: string; createdAt: Date; completedAt: Date | null; dueDate: Date | null }[];
+  responses: { createdAt: Date; score: number; assignment: { instrument: { code: string } } }[];
+  materialAssignments: { id: string; assignedAt: Date; article: { title: string } }[];
+  proximaCita?: { id: string; startAt: Date };
+  ahora: Date;
+}): TimelineEvent[] {
+  const events: TimelineEvent[] = [];
+
+  if (proximaCita) {
+    events.push({
+      key: `next-${proximaCita.id}`,
+      date: proximaCita.startAt,
+      title: "Próxima cita",
+      sub: formatDate(proximaCita.startAt, "d 'de' MMM, h:mm a"),
+      tone: "upcoming",
+      icon: CalendarClock,
+    });
+  }
+  for (const a of appointments) {
+    if (a.startAt.getTime() > ahora.getTime()) continue;
+    if (a.status === "COMPLETADA") {
+      events.push({ key: `a-${a.id}`, date: a.startAt, title: "Sesión completada", sub: "Sesión de terapia", tone: "sage", icon: CalendarCheck });
+    } else if (a.status === "NO_ASISTIO") {
+      events.push({ key: `a-${a.id}`, date: a.startAt, title: "No asistió a la sesión", sub: "Ausencia registrada", tone: "warm", icon: CalendarX });
+    }
+  }
+  for (const t of tasks) {
+    if (t.completedAt) {
+      events.push({ key: `t-${t.id}`, date: t.completedAt, title: "Tarea completada", sub: t.title, tone: "sage", icon: CheckCircle2 });
+    } else if (t.dueDate && t.dueDate.getTime() < ahora.getTime()) {
+      events.push({ key: `t-${t.id}`, date: t.dueDate, title: "Tarea vencida", sub: t.title, tone: "warm", icon: AlertCircle });
+    }
+  }
+  for (const r of responses) {
+    events.push({
+      key: `r-${r.createdAt.getTime()}-${r.assignment.instrument.code}`,
+      date: r.createdAt,
+      title: `${r.assignment.instrument.code} respondido`,
+      sub: `Puntaje ${r.score}`,
+      tone: "sage",
+      icon: ClipboardCheck,
+    });
+  }
+  for (const m of materialAssignments) {
+    events.push({ key: `m-${m.id}`, date: m.assignedAt, title: "Material asignado", sub: m.article.title, tone: "sage", icon: BookOpen });
+  }
+
+  return events.sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 7);
+}
+
+// Línea de tiempo vertical con un chip de ícono por evento.
+function Timeline({ events }: { events: TimelineEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Aún no hay actividad registrada. Las sesiones, tareas y evaluaciones aparecerán aquí.
+      </p>
+    );
+  }
+  return (
+    <ul className="relative">
+      {events.map((e, i) => {
+        const Icon = e.icon;
+        const last = i === events.length - 1;
+        return (
+          <li key={e.key} className="relative flex gap-3 pb-5 last:pb-0">
+            {!last && (
+              <span className="absolute left-[15px] top-8 bottom-0 w-px bg-border" aria-hidden />
+            )}
+            <span
+              className={cn(
+                "relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full",
+                e.tone === "warm"
+                  ? "bg-accent-warm-soft text-accent-warm"
+                  : e.tone === "upcoming"
+                    ? "bg-surface text-primary ring-1 ring-inset ring-primary/40"
+                    : "bg-primary-soft text-primary"
+              )}
+            >
+              <Icon size={15} strokeWidth={1.9} aria-hidden />
+            </span>
+            <div className="min-w-0 pt-1">
+              <p className="text-sm font-medium text-foreground">
+                {e.title}
+                {e.tone === "upcoming" && (
+                  <span className="ml-2 rounded-full bg-primary-soft px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-primary">
+                    Próxima
+                  </span>
+                )}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {e.sub}
+                {e.tone !== "upcoming" && ` · ${formatDate(e.date, "d 'de' MMM")}`}
+              </p>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+// Anillo de progreso animado (SVG). value 0–100 o null.
+function ProgressRing({
+  value,
+  label,
+  tone,
+}: {
+  value: number | null;
+  label: string;
+  tone: string;
+}) {
+  const r = 26;
+  const circ = 2 * Math.PI * r;
+  const off = circ * (1 - (value ?? 0) / 100);
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative size-16">
+        <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90">
+          <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-surface-muted)" strokeWidth="6" />
+          <circle
+            className="progress-ring"
+            cx="32"
+            cy="32"
+            r={r}
+            fill="none"
+            stroke={tone}
+            strokeWidth="6"
+            strokeLinecap="round"
+            style={{
+              strokeDasharray: circ,
+              strokeDashoffset: off,
+              ["--ring-circ" as string]: `${circ}`,
+              ["--ring-off" as string]: `${off}`,
+            }}
+          />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums text-foreground">
+          {value !== null ? `${value}%` : "—"}
+        </span>
+      </div>
+      <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-muted-foreground">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// Celda de la tira de signos clave.
+function StatTile({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  accent = false,
+  muted = false,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  sub?: string;
+  accent?: boolean;
+  muted?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <span
+          className={cn(
+            "flex size-6 shrink-0 items-center justify-center rounded-md",
+            accent ? "bg-accent-warm-soft text-accent-warm" : "bg-primary-soft text-primary"
+          )}
+        >
+          <Icon size={14} strokeWidth={1.9} aria-hidden />
+        </span>
+        <p className="truncate text-[0.7rem] font-semibold uppercase tracking-widest text-muted-foreground">
+          {label}
+        </p>
+      </div>
+      <p
         className={cn(
-          "flex-row items-center justify-between",
-          saldoPendiente > 0 ? "bg-accent-warm-soft" : "bg-surface-muted"
+          "mt-2 truncate text-2xl font-semibold leading-none tabular-nums",
+          accent ? "text-accent-warm" : muted ? "text-muted-foreground" : "text-foreground"
         )}
       >
-        <div>
-          <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-            Saldo pendiente
-          </p>
-          <p
-            className={cn(
-              "mt-1 text-2xl font-semibold tabular-nums",
-              saldoPendiente > 0 ? "text-accent-warm" : "text-foreground"
-            )}
-          >
-            {formatCurrency(saldoPendiente)}
-          </p>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {saldoPendiente > 0
-            ? "Suma de pagos pendientes o parciales del paciente."
-            : "El paciente está al corriente."}
-        </p>
-      </Card>
-
-      {/* Portal del paciente: invitación, acceso y consentimiento */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle>Portal del paciente</CardTitle>
-          {portalStatus === "active" && portalConsent && (
-            <p className="text-xs text-muted-foreground">
-              Consentimiento aceptado el {formatDate(portalConsent.acceptedAt, "d 'de' MMM yyyy")}
-            </p>
-          )}
-        </CardHeader>
-        <CardContent>
-          <PortalWidget
-            patientId={patient.id}
-            status={portalStatus}
-            acceptedAt={portalAccess?.acceptedAt ?? null}
-            expiresAt={portalAccess?.expiresAt ?? null}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Información general */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Información general</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-          <InfoItem label="Fecha de nacimiento" value={patient.fechaNacimiento ? formatDate(patient.fechaNacimiento, "d 'de' MMM yyyy") : null} />
-          <InfoItem label="Sexo" value={patient.sexo} />
-          <InfoItem label="Dirección" value={patient.direccion} />
-          <InfoItem label="Contacto de emergencia" value={patient.contactoEmergencia} />
-        </CardContent>
-      </Card>
-
-      {/* Motivo de consulta / antecedentes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Motivo de consulta y antecedentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {patient.antecedentes ? (
-            <p className="whitespace-pre-line text-sm leading-relaxed">{patient.antecedentes}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Aún no se registran antecedentes. Puedes agregarlos desde Editar.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Notas internas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Notas internas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {patient.notasInternas ? (
-            <p className="whitespace-pre-line text-sm leading-relaxed">{patient.notasInternas}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Sin notas internas. Solo tú puedes ver esta sección.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Tareas entre sesiones: activas, cumplimiento y completadas recientes */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle>Tareas entre sesiones</CardTitle>
-          {cumplimiento !== null && (
-            <p className="text-xs text-muted-foreground">
-              {cumplimiento}% de cumplimiento en las últimas 4 semanas
-            </p>
-          )}
-        </CardHeader>
-        <CardContent>
-          {tareasActivas.length === 0 && tareasHechasRecientes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Aún no hay tareas registradas. Se crean al completar una sesión con acuerdos.
-            </p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {tareasActivas.map((task) => (
-                <li key={task.id} className="flex items-center justify-between gap-4 py-3 first:pt-0">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground">{task.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {task.dueDate
-                        ? `Para el ${formatDate(task.dueDate, "d 'de' MMM yyyy")}`
-                        : "Sin fecha límite"}
-                      {task.appointmentId ? " · Acordada en sesión" : ""}
-                    </p>
-                  </div>
-                  <TaskToggleButton taskId={task.id} done={false} title={task.title} />
-                </li>
-              ))}
-              {tareasHechasRecientes.map((task) => (
-                <li
-                  key={task.id}
-                  className="flex items-center justify-between gap-4 py-3 text-muted-foreground"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm line-through">{task.title}</p>
-                    <p className="mt-0.5 text-xs">
-                      Hecha el {formatDate(task.completedAt!, "d 'de' MMM yyyy")}
-                    </p>
-                  </div>
-                  <TaskToggleButton taskId={task.id} done title={task.title} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Evaluaciones: asignaciones, respuestas y evolución (componente auto-contenido) */}
-      <AssessmentsSection patientId={patient.id} />
-
-      {/* Material psicoeducativo asignado (componente auto-contenido) */}
-      <MaterialSection patientId={patient.id} />
-
-      {/* Historial de citas */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Historial de citas</CardTitle>
-        </CardHeader>
-        <CardContent className="px-0">
-          {patient.appointments.length === 0 ? (
-            <p className="px-(--card-spacing) pb-2 text-sm text-muted-foreground">
-              Aún no tiene citas registradas. Puedes agendar la primera desde la agenda.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="pl-6 text-xs uppercase tracking-widest text-muted-foreground">
-                    Fecha
-                  </TableHead>
-                  <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                    Tipo
-                  </TableHead>
-                  <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                    Estado
-                  </TableHead>
-                  <TableHead className="pr-6 text-right text-xs uppercase tracking-widest text-muted-foreground">
-                    Acción
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {patient.appointments.map((appointment) => (
-                  <TableRow key={appointment.id}>
-                    <TableCell className="pl-6">
-                      {formatDate(appointment.startAt, "d 'de' MMM yyyy, h:mm a")}
-                    </TableCell>
-                    <TableCell>
-                      <AppointmentTypeLabel type={appointment.type} />
-                    </TableCell>
-                    <TableCell>
-                      <AppointmentStatusBadge status={appointment.status} />
-                    </TableCell>
-                    <TableCell className="pr-6 text-right">
-                      <Link
-                        href="/agenda"
-                        className="text-sm text-primary hover:underline underline-offset-4"
-                      >
-                        Ver en agenda
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Historial de pagos */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Historial de pagos</CardTitle>
-        </CardHeader>
-        <CardContent className="px-0">
-          {patient.payments.length === 0 ? (
-            <p className="px-(--card-spacing) pb-2 text-sm text-muted-foreground">
-              Aún no tiene pagos registrados.
-            </p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="pl-6 text-xs uppercase tracking-widest text-muted-foreground">
-                    Fecha
-                  </TableHead>
-                  <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                    Concepto
-                  </TableHead>
-                  <TableHead className="text-right text-xs uppercase tracking-widest text-muted-foreground">
-                    Monto
-                  </TableHead>
-                  <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                    Estado
-                  </TableHead>
-                  <TableHead className="pr-6 text-right text-xs uppercase tracking-widest text-muted-foreground">
-                    Saldo
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {patient.payments.map((payment) => {
-                  const hasSaldo = payment.status === "PENDIENTE" || payment.status === "PARCIAL";
-                  return (
-                    <TableRow key={payment.id}>
-                      <TableCell className="pl-6 text-muted-foreground">
-                        {formatDate(payment.paidAt ?? payment.createdAt, "d 'de' MMM yyyy")}
-                      </TableCell>
-                      <TableCell>{payment.concept ?? "Sesión"}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatCurrency(payment.amount)}
-                      </TableCell>
-                      <TableCell>
-                        <PaymentStatusBadge status={payment.status} />
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          "pr-6 text-right tabular-nums",
-                          hasSaldo ? "font-medium text-accent-warm" : "text-muted-foreground"
-                        )}
-                      >
-                        {hasSaldo ? formatCurrency(payment.amount) : "—"}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+        {value}
+      </p>
+      {sub && <p className="mt-1 text-xs text-muted-foreground">{sub}</p>}
     </div>
+  );
+}
+
+// Tarjeta de sección homologada: cabecera con ícono salvia + título.
+function SectionCard({
+  icon: Icon,
+  title,
+  action,
+  children,
+  contentClassName,
+}: {
+  icon: LucideIcon;
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  contentClassName?: string;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+          <Icon size={18} strokeWidth={1.8} aria-hidden />
+        </span>
+        <CardTitle className="flex-1 text-lg">{title}</CardTitle>
+        {action}
+      </CardHeader>
+      <CardContent className={contentClassName}>{children}</CardContent>
+    </Card>
+  );
+}
+
+function Monogram({ name, last }: { name: string; last: string }) {
+  const initials = `${name.charAt(0)}${last.charAt(0)}`.toUpperCase();
+  return (
+    <span
+      aria-hidden
+      className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-light font-display text-2xl font-semibold text-primary-foreground shadow-soft"
+    >
+      {initials}
+    </span>
   );
 }
 
@@ -413,5 +728,22 @@ function InfoItem({ label, value }: { label: string; value: string | null }) {
       </p>
       <p className="mt-1 text-sm text-foreground">{value ?? "—"}</p>
     </div>
+  );
+}
+
+// Resumen de fechas de una tarea para el diálogo de revisión.
+function taskMeta(task: { createdAt: Date; dueDate: Date | null; completedAt: Date | null }): string {
+  const parts = [`Asignada el ${formatDate(task.createdAt, "d 'de' MMM yyyy")}`];
+  if (task.dueDate) parts.push(`vence el ${formatDate(task.dueDate, "d 'de' MMM yyyy")}`);
+  if (task.completedAt) parts.push(`hecha el ${formatDate(task.completedAt, "d 'de' MMM yyyy")}`);
+  return parts.join(" · ");
+}
+
+// Vista previa de la nota del terapeuta bajo una tarea.
+function TaskNotePreview({ note }: { note: string }) {
+  return (
+    <p className="mt-1.5 border-l-2 border-primary/40 pl-2 text-xs italic text-muted-foreground">
+      {note}
+    </p>
   );
 }

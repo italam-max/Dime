@@ -1,3 +1,4 @@
+import { ClipboardCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { cn, formatDate } from "@/lib/utils";
 import {
@@ -156,8 +157,11 @@ export async function AssessmentsSection({ patientId }: { patientId: string }) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle>Evaluaciones</CardTitle>
+      <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+          <ClipboardCheck size={18} strokeWidth={1.8} aria-hidden />
+        </span>
+        <CardTitle className="flex-1 text-lg">Evaluaciones</CardTitle>
         {instruments.length > 0 && (
           <AssignAssessmentDialog patientId={patientId} instruments={instruments} />
         )}

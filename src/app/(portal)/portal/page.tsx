@@ -51,7 +51,7 @@ export default async function PortalHomePage() {
   ]);
 
   return (
-    <div className="mt-4 space-y-6">
+    <div className="stagger-children mt-4 space-y-6">
       <header className="text-center">
         <h1 className="font-display text-3xl font-semibold text-foreground">
           Hola, {patient.nombre}

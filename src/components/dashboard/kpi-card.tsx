@@ -16,7 +16,7 @@ interface KpiCardProps {
 // con el mes anterior en muted-foreground (sin drama).
 export function KpiCard({ label, value, delta }: KpiCardProps) {
   return (
-    <Card>
+    <Card className="hover-lift">
       <CardHeader className="pb-2">
         <CardTitle className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
           {label}

@@ -180,9 +180,9 @@ export default async function PagosPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="stagger-children grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {kpis.map((kpi) => (
-          <Card key={kpi.label}>
+          <Card key={kpi.label} className="hover-lift">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                 {kpi.label}

@@ -38,8 +38,11 @@ export async function MaterialSection({ patientId }: { patientId: string }) {
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <CardTitle>Material psicoeducativo</CardTitle>
+      <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
+          <BookOpen size={18} strokeWidth={1.8} aria-hidden />
+        </span>
+        <CardTitle className="flex-1 text-lg">Material psicoeducativo</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {assignments.length === 0 ? (

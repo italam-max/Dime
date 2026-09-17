@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { patientSchema } from "@/lib/validations/patient";
+import { taskSchema } from "@/lib/validations/task";
 import { prisma } from "@/lib/prisma";
 
 // Estado devuelto por las actions de pacientes al cliente (serializable).
@@ -101,6 +102,63 @@ export async function togglePatientActive(
 
   revalidatePath("/pacientes");
   revalidatePath(`/pacientes/${patientId}`);
+}
+
+// Crea una tarea entre sesiones directamente desde la ficha (sin sesión
+// asociada). Visible para el paciente en su portal.
+export async function createPatientTask(
+  patientId: string,
+  input: { title: string; dueDate?: string }
+): Promise<{ ok: boolean; message?: string }> {
+  const parsed = taskSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  const patient = await prisma.patient.findUnique({
+    where: { id: patientId },
+    select: { id: true },
+  });
+  if (!patient) return { ok: false, message: "No se encontró el paciente." };
+
+  await prisma.task.create({
+    data: {
+      patientId,
+      title: parsed.data.title.trim(),
+      dueDate: parsed.data.dueDate ? new Date(`${parsed.data.dueDate}T12:00:00`) : null,
+    },
+  });
+
+  revalidatePath(`/pacientes/${patientId}`);
+  return { ok: true, message: "Tarea agregada" };
+}
+
+// Guarda (o borra) la nota de evaluación del terapeuta sobre una tarea.
+export async function saveTaskNote(
+  taskId: string,
+  note: string
+): Promise<{ ok: boolean; message?: string }> {
+  const trimmed = note.trim();
+  if (trimmed.length > 2000) {
+    return { ok: false, message: "La nota es demasiado larga (máximo 2000 caracteres)." };
+  }
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: { patientId: true },
+  });
+  if (!task) return { ok: false, message: "No se encontró la tarea." };
+
+  await prisma.task.update({
+    where: { id: taskId },
+    data: {
+      therapistNote: trimmed === "" ? null : trimmed,
+      reviewedAt: trimmed === "" ? null : new Date(),
+    },
+  });
+
+  revalidatePath(`/pacientes/${task.patientId}`);
+  return { ok: true, message: trimmed === "" ? "Nota eliminada" : "Nota guardada" };
 }
 
 // Marca una tarea como hecha (done = true) o la reabre (done = false).
