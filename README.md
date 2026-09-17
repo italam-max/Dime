@@ -15,21 +15,22 @@ La especificación completa está en [`docs/`](docs/01-requerimientos.md): reque
 
 ## Stack
 
-Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 + shadcn/ui · Prisma 6 · SQLite (dev) / PostgreSQL (prod) · sesión propia con jose · React Hook Form + Zod · date-fns · Recharts.
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 + shadcn/ui · Prisma 6 · PostgreSQL 16 · Docker · sesión propia con jose · React Hook Form + Zod · date-fns · Recharts.
 
 ## Requisitos
 
 - Node.js 20+ y npm.
-- Para desarrollo: nada más (SQLite, archivo local).
+- Docker (para PostgreSQL local; mismo motor que producción).
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env        # Windows: copy .env.example .env
-npx prisma migrate dev      # crea prisma/dev.db y aplica migraciones
-npm run db:seed             # datos de ejemplo (terapeuta, 6 pacientes, citas y pagos)
-npm run dev                 # http://localhost:3000
+cp .env.example .env                          # Windows: copy .env.example .env
+docker compose -f docker-compose.dev.yml up -d # levanta PostgreSQL local
+npx prisma migrate deploy                      # aplica migraciones
+npm run db:seed                                # datos de ejemplo (terapeuta, 6 pacientes, citas y pagos)
+npm run dev                                    # http://localhost:3000
 ```
 
 **Credenciales del seed:** `terapeuta@dime.app` / `dime1234`
@@ -48,16 +49,28 @@ npm run dev                 # http://localhost:3000
 
 Definidas en `.env` (ver `.env.example`):
 
-- `DATABASE_URL` — `file:./dev.db` en desarrollo; cadena PostgreSQL en producción.
-- `SESSION_SECRET` — secreto HS256 para firmar la cookie de sesión (genera uno propio en producción).
+- `DATABASE_URL` — cadena de conexión PostgreSQL (dev y prod usan el mismo motor).
+- `SESSION_SECRET` — secreto HS256 para firmar la cookie de sesión (genera uno propio con `openssl rand -base64 48`).
+- `DIME_DOMAIN` — (prod) dominio público para el reverse proxy.
 
-## Pasar a PostgreSQL (producción)
+## Docker / Producción
 
-1. En `prisma/schema.prisma` cambia `provider = "sqlite"` a `provider = "postgresql"`.
-2. Ajusta `DATABASE_URL` a tu instancia.
-3. `npx prisma migrate deploy` y regenera el cliente.
+La app corre en Docker en producción. La imagen aplica las migraciones al
+arrancar (`prisma migrate deploy` en `docker-entrypoint.sh`) y luego levanta Next.
 
-El esquema usa campos `String` en lugar de enums nativos precisamente para que esta migración sea directa; la validación de valores vive en `src/lib/validations/`.
+```bash
+docker compose up -d --build   # construye y despliega (usa el .env del servidor)
+```
+
+- `docker-compose.yml` — servicio `app` en la red externa `backend`, conectado
+  al PostgreSQL compartido (`postgres_shared`) vía `DATABASE_URL`.
+- `docker-compose.dev.yml` — solo PostgreSQL, para desarrollo en el host.
+- Los cambios de esquema deben ser **migraciones reales** de Prisma
+  (`npx prisma migrate dev --name algo`) y comitearse en `prisma/migrations/`;
+  en prod solo se aplican migraciones versionadas.
+
+El esquema guarda estados/tipos como `String` (no enums nativos); la validación
+de valores vive en `src/lib/validations/`.
 
 ## Notas
 

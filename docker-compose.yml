@@ -1,0 +1,28 @@
+# Producción. Se despliega en el servidor con:  docker compose up -d --build
+# La app se conecta al PostgreSQL compartido (postgres_shared) por la red
+# externa "backend". Las variables (DATABASE_URL, DIME_DOMAIN, SESSION_SECRET)
+# viven en el .env del servidor — nunca se comitean.
+services:
+  app:
+    build: .
+    image: dime-app
+    container_name: dime_app
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    expose:
+      - "3000"
+    networks:
+      - backend
+    # Si usas un reverse proxy (Traefik/Caddy/nginx) en la red "backend",
+    # enrútalo a  app:3000  usando DIME_DOMAIN. Si necesitas exponer el puerto
+    # directamente al host, descomenta:
+    # ports:
+    #   - "3000:3000"
+
+networks:
+  backend:
+    external: true

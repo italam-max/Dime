@@ -1,0 +1,31 @@
+# Desarrollo local. Levanta solo PostgreSQL (mismo motor que prod) para que
+# corras la app en el host con  npm run dev  y HMR rápido.
+#
+#   docker compose -f docker-compose.dev.yml up -d      # levanta Postgres
+#   npx prisma migrate deploy                            # aplica migraciones
+#   npm run db:seed                                      # datos de ejemplo
+#   npm run dev
+#
+# El .env de desarrollo debe apuntar a este Postgres:
+#   DATABASE_URL="postgresql://dime_user:dime_dev_password@localhost:5432/dime_db?schema=public"
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dime_postgres_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dime_db
+      POSTGRES_USER: dime_user
+      POSTGRES_PASSWORD: dime_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - dime_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dime_user -d dime_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  dime_pgdata:

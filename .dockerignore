@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.gitignore
+npm-debug.log*
+Dockerfile
+.dockerignore
+docker-compose*.yml
+.env
+.env.*
+*.db
+*.db-journal
+.vercel
+coverage
+.DS_Store
+docs
+README.md
