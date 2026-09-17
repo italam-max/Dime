@@ -19,7 +19,7 @@ function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-export function AppSidebar() {
+export function AppSidebar({ version }: { version?: string }) {
   const pathname = usePathname();
 
   return (
@@ -62,6 +62,14 @@ export function AppSidebar() {
             Cerrar sesión
           </button>
         </form>
+        {version && (
+          <p
+            className="px-3 pt-2 text-[0.7rem] tabular-nums text-muted-foreground/60"
+            title="Versión desplegada"
+          >
+            {version}
+          </p>
+        )}
       </footer>
     </aside>
   );

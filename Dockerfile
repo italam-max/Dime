@@ -35,6 +35,11 @@ RUN npx prisma generate
 FROM base AS runner
 ENV NODE_ENV=production
 ENV PORT=3000
+# Metadatos del build (opcionales): permiten mostrar el commit desplegado.
+ARG APP_BUILD_SHA=""
+ARG APP_BUILD_TIME=""
+ENV APP_BUILD_SHA=$APP_BUILD_SHA
+ENV APP_BUILD_TIME=$APP_BUILD_TIME
 RUN groupadd -r nodejs && useradd -r -g nodejs -m nextjs
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
