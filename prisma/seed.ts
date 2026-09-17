@@ -23,32 +23,34 @@ function enDias(dias: number, hora = 11, minutos = 0): Date {
 }
 
 async function main() {
-  // Guardia de seguridad: este seed BORRA usuarios/pacientes/citas/pagos antes
-  // de recrearlos. Si la base ya tiene datos, no siembra (para no pisar data
-  // real en producción). Forzar con FORCE_SEED=true solo si sabes lo que haces.
-  const existentes = await prisma.user.count();
-  if (existentes > 0 && process.env.FORCE_SEED !== "true") {
+  // Guardia: no re-sembrar si ya hay pacientes (evita pisar datos reales).
+  // Forzar con FORCE_SEED=true. Nunca borra usuarios: conserva cuentas reales.
+  const pacientesExistentes = await prisma.patient.count();
+  if (pacientesExistentes > 0 && process.env.FORCE_SEED !== "true") {
     console.log(
-      `Seed omitido: la base ya tiene ${existentes} usuario(s). Usa FORCE_SEED=true para forzar.`
+      `Seed omitido: ya hay ${pacientesExistentes} paciente(s). Usa FORCE_SEED=true para forzar.`
     );
     return;
   }
 
-  // Limpieza (evita duplicados al re-sembrar)
+  // Limpieza de datos demo (NO toca usuarios: conserva admin/cuentas reales).
   await prisma.payment.deleteMany();
   await prisma.appointment.deleteMany();
   await prisma.patient.deleteMany();
-  await prisma.user.deleteMany();
 
-  // Terapeuta
-  const passwordHash = await bcrypt.hash("dime1234", 10);
-  const user = await prisma.user.create({
-    data: {
-      email: "terapeuta@dime.app",
-      name: "Mariana Solís",
-      passwordHash,
-    },
-  });
+  // Terapeuta demo: solo si no hay ningún usuario. Si ya existe uno (p. ej.
+  // el admin de producción), se conserva y solo se agregan los pacientes.
+  let user: { email: string } | null = null;
+  if ((await prisma.user.count()) === 0) {
+    const passwordHash = await bcrypt.hash("dime1234", 10);
+    user = await prisma.user.create({
+      data: {
+        email: "terapeuta@dime.app",
+        name: "Mariana Solís",
+        passwordHash,
+      },
+    });
+  }
 
   // Pacientes (6, 2 inactivos)
   const pacientes = await Promise.all([
@@ -418,7 +420,10 @@ async function main() {
     }),
   ]);
 
-  console.log(`Seed completado: 1 usuario (${user.email}), ${pacientes.length} pacientes, ${citas.length} citas y 10 pagos.`);
+  const usuarioMsg = user ? `usuario ${user.email}` : "usuario existente conservado";
+  console.log(
+    `Seed completado: ${usuarioMsg}, ${pacientes.length} pacientes, ${citas.length} citas y 10 pagos.`
+  );
 }
 
 main()
