@@ -23,6 +23,17 @@ function enDias(dias: number, hora = 11, minutos = 0): Date {
 }
 
 async function main() {
+  // Guardia de seguridad: este seed BORRA usuarios/pacientes/citas/pagos antes
+  // de recrearlos. Si la base ya tiene datos, no siembra (para no pisar data
+  // real en producción). Forzar con FORCE_SEED=true solo si sabes lo que haces.
+  const existentes = await prisma.user.count();
+  if (existentes > 0 && process.env.FORCE_SEED !== "true") {
+    console.log(
+      `Seed omitido: la base ya tiene ${existentes} usuario(s). Usa FORCE_SEED=true para forzar.`
+    );
+    return;
+  }
+
   // Limpieza (evita duplicados al re-sembrar)
   await prisma.payment.deleteMany();
   await prisma.appointment.deleteMany();
