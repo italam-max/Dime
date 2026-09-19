@@ -118,12 +118,12 @@ export function PortalWidget({
       <p className="flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground">
         <ShieldCheck size={14} className="mt-0.5 shrink-0" aria-hidden />
         {status === "active"
-          ? `Portal activo desde el ${acceptedAt ? new Date(acceptedAt).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }) : "—"}.`
+          ? `Cuenta activa desde el ${acceptedAt ? new Date(acceptedAt).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" }) : "—"}. El paciente entra con su correo y contraseña.`
           : status === "pending"
-            ? `Invitación pendiente. El enlace vence ${expiresAt ? new Date(expiresAt).toLocaleDateString("es-MX", { day: "numeric", month: "long" }) : "en 48 h"} y solo se puede usar una vez.`
+            ? `Invitación de alta pendiente. Con el enlace el paciente define su contraseña y activa su cuenta; vence ${expiresAt ? new Date(expiresAt).toLocaleDateString("es-MX", { day: "numeric", month: "long" }) : "en 48 h"} y solo se puede usar una vez.`
             : status === "revoked"
-              ? "El acceso fue revocado. Puedes invitar de nuevo cuando lo necesites."
-              : "El paciente aún no tiene acceso. Genera un enlace y compártelo por tu canal habitual."}
+              ? "El acceso fue revocado y la cuenta quedó deshabilitada. Puedes invitar de nuevo cuando lo necesites."
+              : "El paciente aún no tiene cuenta. Genera un enlace de alta y compártelo; con él creará su contraseña y entrará a su portal."}
       </p>
     </div>
   );

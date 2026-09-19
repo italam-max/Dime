@@ -20,20 +20,24 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 + shadcn/ui 
 ## Requisitos
 
 - Node.js 20+ y npm.
-- Docker (para PostgreSQL local; mismo motor que producción).
+- PostgreSQL local (mismo motor que producción). Sin instalar nada: `npm run db:up`
+  levanta un Postgres 16 embebido. Alternativa con Docker: `docker-compose.dev.yml`.
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env                          # Windows: copy .env.example .env
-docker compose -f docker-compose.dev.yml up -d # levanta PostgreSQL local
-npx prisma migrate deploy                      # aplica migraciones
-npm run db:seed                                # datos de ejemplo (terapeuta, 6 pacientes, citas y pagos)
-npm run dev                                    # http://localhost:3000
+cp .env.example .env    # Windows: copy .env.example .env
+npm run db:up           # Postgres 16 local embebido (o: docker compose -f docker-compose.dev.yml up -d)
+npx prisma migrate deploy   # aplica migraciones
+npm run db:seed             # datos de ejemplo (terapeuta, 6 pacientes, citas y pagos)
+npm run dev                 # http://localhost:3000
 ```
 
 **Credenciales del seed:** `terapeuta@dime.app` / `dime1234`
+
+El Postgres embebido guarda sus datos en `~/.dime-dev-pg` (fuera del repo) y
+persiste entre sesiones. Párralo con `npm run db:down`.
 
 ## Scripts
 
@@ -42,6 +46,7 @@ npm run dev                                    # http://localhost:3000
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` / `npm start` | Build y servidor de producción |
 | `npm run lint` | ESLint |
+| `npm run db:up` / `db:down` / `db:status` | Postgres 16 local embebido (sin Docker) |
 | `npm run db:migrate` | Migraciones de Prisma |
 | `npm run db:seed` | Poblar la base con datos de ejemplo |
 

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
@@ -42,6 +43,12 @@ export default async function PortalIngresarPage({
           Tu enlace de acceso ya no es válido o fue revocado. Contacta a tu
           consultorio y con gusto te enviarán uno nuevo para entrar a tu espacio.
         </p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          ¿Ya activaste tu cuenta?{" "}
+          <Link href="/portal/login" className="font-medium text-primary hover:underline">
+            Inicia sesión
+          </Link>
+        </p>
       </div>
     );
   }
@@ -57,6 +64,12 @@ export default async function PortalIngresarPage({
           Puede haber expirado o haber sido usado anteriormente. Pide a tu consultorio que te
           envíe un enlace nuevo para entrar a tu espacio.
         </p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          ¿Ya activaste tu cuenta?{" "}
+          <Link href="/portal/login" className="font-medium text-primary hover:underline">
+            Inicia sesión
+          </Link>
+        </p>
       </div>
     );
   }
@@ -68,8 +81,8 @@ export default async function PortalIngresarPage({
           Hola, {invitation.patientName.split(" ")[0]}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Tu terapeuta te invitó a tu espacio personal. Antes de entrar, lee el aviso de
-          privacidad.
+          Tu terapeuta te invitó a tu espacio personal. Crea tu contraseña y acepta el aviso de
+          privacidad para activar tu cuenta.
         </p>
       </header>
 

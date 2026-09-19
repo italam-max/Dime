@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarDays, LayoutDashboard, LogOut, Users, Wallet } from "lucide-react";
+import { BookOpen, CalendarDays, LayoutDashboard, LogOut, UserCog, Users, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand/logo";
 import { logout } from "@/app/(auth)/actions";
@@ -19,8 +19,17 @@ function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
-export function AppSidebar({ version }: { version?: string }) {
+export function AppSidebar({
+  version,
+  isSuperAdmin = false,
+}: {
+  version?: string;
+  isSuperAdmin?: boolean;
+}) {
   const pathname = usePathname();
+  const navItems = isSuperAdmin
+    ? [...NAV_ITEMS, { href: "/usuarios", label: "Usuarios", icon: UserCog }]
+    : NAV_ITEMS;
 
   return (
     <aside className="fixed inset-y-0 left-0 flex w-60 flex-col border-r border-border bg-surface">
@@ -31,7 +40,7 @@ export function AppSidebar({ version }: { version?: string }) {
       </div>
 
       <nav className="flex-1 space-y-1 px-3">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (
             <Link

@@ -34,6 +34,20 @@ export async function login(
   const matches = await bcrypt.compare(password, user.passwordHash);
   if (!matches) return invalid;
 
+  // Las cuentas de paciente entran por su portal, no por el acceso del staff.
+  if (user.role === "PATIENT") {
+    return { message: "Esta cuenta es de paciente. Entra desde el enlace de tu portal." };
+  }
+
+  if (!user.isActive) {
+    return { message: "Tu acceso está deshabilitado. Contacta a un administrador." };
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
   await createSession(user.id);
   redirect("/");
 }

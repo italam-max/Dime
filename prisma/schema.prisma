@@ -16,7 +16,13 @@ model User {
   email        String   @unique
   name         String
   passwordHash String
-  createdAt    DateTime @default(now())
+  role         String    @default("THERAPIST") // SUPERADMIN | ADMIN | THERAPIST | PATIENT
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime? // último inicio de sesión correcto
+  createdAt    DateTime  @default(now())
+  // Solo para cuentas de paciente (role PATIENT): liga la cuenta a su ficha.
+  patientId    String?   @unique
+  patient      Patient?  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 }
 
 model Patient {
@@ -41,6 +47,7 @@ model Patient {
   tasks              Task[]
   assessmentAssignments AssessmentAssignment[]
   articleAssignments ArticleAssignment[]
+  account            User? // cuenta de acceso al portal (role PATIENT)
 
   @@index([apellidos, nombre])
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import bcrypt from "bcryptjs";
 import {
   createPortalSession,
   destroyPortalSession,
@@ -12,6 +13,7 @@ import {
 import { CONSENT_PORTAL_VERSION } from "@/lib/consent-text";
 import { prisma } from "@/lib/prisma";
 import { hashPortalToken } from "@/lib/portal-token";
+import { PATIENT_ROLE, portalPasswordSchema } from "@/lib/validations/user";
 
 export interface PortalActionState {
   ok?: boolean;
@@ -52,9 +54,11 @@ export async function findValidInvitation(token: string): Promise<ValidInvitatio
   };
 }
 
-// Acepta la invitación: valida el token de nuevo, exige el checkbox de
-// consentimiento, persiste el consentimiento y marca la invitación como usada.
-export async function acceptPortalInvitation(
+// Activa la cuenta del paciente desde el enlace de alta: valida el token de
+// nuevo, exige aceptar el aviso de privacidad y definir una contraseña, crea
+// (o reactiva) su cuenta role PATIENT ligada a la ficha, registra el
+// consentimiento, marca el enlace como usado y abre la sesión del portal.
+export async function activatePortalAccount(
   _prev: PortalActionState,
   formData: FormData
 ): Promise<PortalActionState> {
@@ -70,11 +74,51 @@ export async function acceptPortalInvitation(
     return { message: "Para continuar necesitas aceptar el aviso de privacidad." };
   }
 
+  const parsedPassword = portalPasswordSchema.safeParse(formData.get("password"));
+  if (!parsedPassword.success) {
+    return { message: parsedPassword.error.issues[0]?.message ?? "Contraseña inválida." };
+  }
+
+  // La cuenta se identifica con el correo de la ficha. Sin correo no hay cuenta.
+  const patient = await prisma.patient.findUnique({
+    where: { id: invitation.patientId },
+    select: { email: true, nombre: true, apellidos: true },
+  });
+  if (!patient?.email) {
+    return {
+      message: "Tu ficha no tiene un correo registrado. Pide a tu consultorio que lo agregue.",
+    };
+  }
+  const email = patient.email.trim().toLowerCase();
+
+  // El correo no puede pertenecer a otra cuenta (staff u otro paciente).
+  const clash = await prisma.user.findUnique({
+    where: { email },
+    select: { patientId: true },
+  });
+  if (clash && clash.patientId !== invitation.patientId) {
+    return { message: "Ese correo ya está en uso por otra cuenta. Contacta a tu consultorio." };
+  }
+
+  const passwordHash = await bcrypt.hash(parsedPassword.data, 10);
+  const name = `${patient.nombre} ${patient.apellidos}`.trim();
+
   const headerList = await headers();
-  const ip =
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
+  const ip = headerList.get("x-forwarded-for")?.split(",")[0]?.trim() || null;
 
   await prisma.$transaction([
+    prisma.user.upsert({
+      where: { patientId: invitation.patientId },
+      create: {
+        email,
+        name,
+        role: PATIENT_ROLE,
+        patientId: invitation.patientId,
+        passwordHash,
+        isActive: true,
+      },
+      update: { email, name, passwordHash, isActive: true },
+    }),
     prisma.consent.create({
       data: {
         patientId: invitation.patientId,
@@ -90,6 +134,40 @@ export async function acceptPortalInvitation(
   ]);
 
   await createPortalSession(invitation.patientId);
+  redirect("/portal");
+}
+
+// Reingreso habitual del paciente: correo + contraseña de su cuenta PATIENT.
+export async function loginPortal(
+  _prev: PortalActionState,
+  formData: FormData
+): Promise<PortalActionState> {
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+
+  const invalid = { message: "El correo o la contraseña no coinciden. Inténtalo de nuevo." };
+  if (!email || !password) return invalid;
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, passwordHash: true, role: true, isActive: true, patientId: true },
+  });
+  // Solo cuentas de paciente entran por aquí; no revela si el correo existe.
+  if (!user || user.role !== PATIENT_ROLE || !user.patientId) return invalid;
+
+  const matches = await bcrypt.compare(password, user.passwordHash);
+  if (!matches) return invalid;
+
+  if (!user.isActive) {
+    return { message: "Tu acceso está deshabilitado. Contacta a tu consultorio." };
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
+  await createPortalSession(user.patientId);
   redirect("/portal");
 }
 
@@ -125,8 +203,8 @@ export async function reopenPortalTask(taskId: string): Promise<PortalActionStat
   return { ok: true, message: "La tarea volvió a pendientes" };
 }
 
-// Cierra la sesión del portal y vuelve a la pantalla de entrada.
+// Cierra la sesión del portal y vuelve a la pantalla de inicio de sesión.
 export async function logoutPortal(): Promise<void> {
   await destroyPortalSession();
-  redirect("/portal/ingresar");
+  redirect("/portal/login");
 }
