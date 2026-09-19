@@ -68,6 +68,9 @@ docker compose up -d --build   # construye y despliega (usa el .env del servidor
 - Los cambios de esquema deben ser **migraciones reales** de Prisma
   (`npx prisma migrate dev --name algo`) y comitearse en `prisma/migrations/`;
   en prod solo se aplican migraciones versionadas.
+- `SEED_DEMO=true` en el `.env` del servidor siembra los datos de demo al
+  arrancar **solo si la base está vacía** (el seed está protegido y no pisa
+  data real). Quítalo una vez que haya datos reales.
 
 El esquema guarda estados/tipos como `String` (no enums nativos); la validación
 de valores vive en `src/lib/validations/`.
