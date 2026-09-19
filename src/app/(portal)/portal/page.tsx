@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 // que los datos del paciente jamás se serialicen en la respuesta).
 export default async function PortalHomePage() {
   const patient = await getPortalPatient();
-  if (!patient) redirect("/portal/ingresar");
+  if (!patient) redirect("/portal/login");
   if (!(await hasPortalConsent(patient.id))) redirect("/portal/pausa");
 
   const ahora = new Date();

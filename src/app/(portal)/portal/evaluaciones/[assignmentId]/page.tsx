@@ -23,7 +23,7 @@ export default async function EvaluacionPage({
 }) {
   const { assignmentId } = await params;
   const patient = await getPortalPatient();
-  if (!patient) redirect("/portal/ingresar");
+  if (!patient) redirect("/portal/login");
   if (!(await hasPortalConsent(patient.id))) redirect("/portal/pausa");
 
   const assignment = await prisma.assessmentAssignment.findFirst({

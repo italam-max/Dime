@@ -27,13 +27,13 @@ export default async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const sessions = await readSessions(req);
 
-  // Ruta pública: la aceptación de invitación solo necesita el token del enlace.
-  // Se deja pasar siempre: si la sesión portal es válida, la propia página de
-  // ingreso redirige al home. Redirigir aquí a ciegas crearía un ciclo infinito
-  // cuando la cookie existe pero el acceso ya no es válido (revocado, paciente
-  // inactivo o invitación sin aceptar), porque el área /portal volvería a
-  // mandar al paciente a esta misma ruta.
-  if (path.startsWith("/portal/ingresar")) {
+  // Rutas públicas del portal: el alta con enlace (/portal/ingresar) solo necesita
+  // el token, y el inicio de sesión (/portal/login) es la entrada del paciente ya
+  // dado de alta. Se dejan pasar siempre: si la sesión portal es válida, la propia
+  // página redirige al home. Redirigir aquí a ciegas crearía un ciclo infinito
+  // cuando la cookie existe pero el acceso ya no es válido (cuenta deshabilitada o
+  // paciente inactivo), porque el área /portal volvería a mandar aquí.
+  if (path.startsWith("/portal/ingresar") || path.startsWith("/portal/login")) {
     return NextResponse.next();
   }
 
@@ -41,7 +41,7 @@ export default async function proxy(req: NextRequest) {
   if (path.startsWith("/portal")) {
     if (sessions.portal) return NextResponse.next();
     if (sessions.therapist) return NextResponse.redirect(new URL("/", req.nextUrl));
-    return NextResponse.redirect(new URL("/portal/ingresar", req.nextUrl));
+    return NextResponse.redirect(new URL("/portal/login", req.nextUrl));
   }
 
   // /login es pública; con sesión terapeuta se manda al panel.

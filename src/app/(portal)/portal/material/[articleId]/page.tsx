@@ -20,7 +20,7 @@ export default async function PortalMaterialPage({
   params: Promise<{ articleId: string }>;
 }) {
   const patient = await getPortalPatient();
-  if (!patient) redirect("/portal/ingresar");
+  if (!patient) redirect("/portal/login");
   if (!(await hasPortalConsent(patient.id))) redirect("/portal/pausa");
 
   const { articleId } = await params;

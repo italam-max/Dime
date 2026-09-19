@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generatePortalToken } from "@/lib/portal-token";
+import { PATIENT_ROLE } from "@/lib/validations/user";
 
 // Estado devuelto por las actions del widget del portal (serializable).
 export interface PortalActionState {
@@ -23,9 +24,15 @@ export async function inviteToPortal(
 
   const patient = await prisma.patient.findUnique({
     where: { id: patientId },
-    select: { id: true },
+    select: { id: true, email: true },
   });
   if (!patient) return { message: "No se encontró el paciente." };
+
+  // La cuenta del paciente se identifica con su correo: sin correo no puede
+  // activarse. Se pide agregarlo a la ficha antes de invitar.
+  if (!patient.email?.trim()) {
+    return { message: "Agrega un correo a la ficha del paciente antes de invitarlo al portal." };
+  }
 
   const { token, tokenHash } = generatePortalToken();
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
@@ -63,10 +70,19 @@ export async function revokePortalAccess(
   const user = await getCurrentUser();
   if (!user) return { message: "Tu sesión ha caducado. Vuelve a entrar." };
 
-  await prisma.portalAccess.updateMany({
-    where: { patientId, revokedAt: null },
-    data: { revokedAt: new Date() },
-  });
+  // Revocar corta el acceso por dos vías: marca la invitación y deshabilita la
+  // cuenta de paciente (getPortalPatient exige la cuenta activa). Reinvitar y
+  // reactivar la cuenta la vuelve a habilitar.
+  await prisma.$transaction([
+    prisma.portalAccess.updateMany({
+      where: { patientId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    }),
+    prisma.user.updateMany({
+      where: { patientId, role: PATIENT_ROLE },
+      data: { isActive: false },
+    }),
+  ]);
 
   revalidatePath(`/pacientes/${patientId}`);
   return { success: true, message: "Acceso al portal revocado" };

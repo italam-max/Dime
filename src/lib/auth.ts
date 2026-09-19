@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { CONSENT_PORTAL_VERSION } from "@/lib/consent-text";
+import { PATIENT_ROLE } from "@/lib/validations/user";
 import {
   encrypt,
   decrypt,
@@ -42,10 +43,16 @@ export async function getCurrentUser() {
   const session = await getSession();
   if (!session || session.kind !== "therapist") return null;
 
-  return prisma.user.findUnique({
+  const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, email: true, name: true, createdAt: true },
+    select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
   });
+  // Un usuario deshabilitado deja de tener sesión válida.
+  if (!user || !user.isActive) return null;
+  // Las cuentas de paciente jamás acceden al área de staff, aunque porten una
+  // cookie de terapeuta: su lugar es el portal (getPortalPatient).
+  if (user.role === "PATIENT") return null;
+  return user;
 }
 
 // --- Sesión del portal del paciente (kind: "portal") -----------------------
@@ -77,21 +84,20 @@ export async function getPortalPatient() {
   const session = await decrypt(token);
   if (!session || session.kind !== "portal") return null;
 
-  const access = await prisma.portalAccess.findUnique({
-    where: { patientId: session.userId },
+  // La cookie del portal lleva el patientId. El acceso es válido mientras la
+  // cuenta de paciente (role PATIENT) esté activa y su ficha activa. Deshabilitar
+  // la cuenta desde el staff corta el acceso en el siguiente request.
+  const account = await prisma.user.findFirst({
+    where: { patientId: session.userId, role: PATIENT_ROLE, isActive: true },
     select: {
-      revokedAt: true,
-      acceptedAt: true,
       patient: { select: { id: true, nombre: true, apellidos: true, isActive: true } },
     },
   });
 
-  if (!access) return null;
-  if (access.revokedAt !== null) return null;
-  if (access.acceptedAt === null) return null;
-  if (!access.patient.isActive) return null;
+  if (!account?.patient) return null;
+  if (!account.patient.isActive) return null;
 
-  return access.patient;
+  return account.patient;
 }
 
 // Elimina la cookie de sesión del portal.
