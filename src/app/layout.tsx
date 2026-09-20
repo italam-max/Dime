@@ -30,11 +30,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
-      className={cn("h-full antialiased font-sans", cormorant.variable, inter.variable)}
+      className={cn("dark h-full antialiased font-sans", cormorant.variable, inter.variable)}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
-        <Toaster position="top-center" richColors={false} />
+        <Toaster position="top-center" theme="dark" richColors={false} />
       </body>
     </html>
   );

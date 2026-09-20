@@ -9,17 +9,25 @@ export interface StatusChartDatum {
   citas: number;
 }
 
-// Paleta "Calma" por estado de cita.
+// Color con significado por estado de cita (tokens del tema, adaptables a
+// claro/oscuro): completada = menta (éxito), confirmada = salvia, pendiente =
+// miel (en espera), no asistió = terracota (aviso), cancelada = apagado.
 const COLOR_POR_ESTADO: Record<string, string> = {
-  COMPLETADA: "#5E7A6B",
-  CONFIRMADA: "#8A857C",
-  PENDIENTE: "#E8E5DE",
-  NO_ASISTIO: "#B08968",
-  CANCELADA: "#CFC9BE",
+  COMPLETADA: "var(--color-mint)",
+  CONFIRMADA: "var(--color-primary)",
+  PENDIENTE: "var(--color-honey)",
+  NO_ASISTIO: "var(--color-accent-warm)",
+  CANCELADA: "var(--color-muted-foreground)",
 };
 
 const colorPara = (estadoKey: string, index: number): string =>
-  COLOR_POR_ESTADO[estadoKey] ?? ["#5E7A6B", "#8A857C", "#E8E5DE", "#B08968"][index % 4];
+  COLOR_POR_ESTADO[estadoKey] ??
+  [
+    "var(--color-primary)",
+    "var(--color-mint)",
+    "var(--color-honey)",
+    "var(--color-accent-warm)",
+  ][index % 4];
 
 // Distribución de citas del mes en curso por estado (dona).
 export function AppointmentsByStatusChart({ data }: { data: StatusChartDatum[] }) {
@@ -44,7 +52,7 @@ export function AppointmentsByStatusChart({ data }: { data: StatusChartDatum[] }
           <Legend
             iconType="circle"
             iconSize={8}
-            wrapperStyle={{ fontSize: 12, color: "#8A857C" }}
+            wrapperStyle={{ fontSize: 12, color: "var(--color-muted-foreground)" }}
           />
         </PieChart>
       </ResponsiveContainer>
