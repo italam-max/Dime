@@ -26,6 +26,9 @@
   --color-honey: #b98a2e; /* miel/ámbar botánico (ingresos, energía cálida) */
   --color-honey-soft: #f6eeda;
 
+  --color-iris: #6b6fd6; /* iris/periwinkle (mente, evaluación) */
+  --color-iris-soft: #ececfb;
+
   --color-accent-warm: #b08968; /* terracota suave (saldo pendiente, avisos) */
   --color-accent-warm-soft: #f4ebe2;
 
@@ -123,6 +126,49 @@
 
 .progress-ring {
   animation: ring-fill 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+
+/* --- Follaje vivo (landing): mecido ambiental de las hojas grandes --- */
+@keyframes leaf-drift {
+  0%,
+  100% {
+    transform: rotate(var(--leaf-rot, 0deg)) translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: rotate(var(--leaf-rot, 0deg)) translateY(-6px) rotate(3.5deg);
+  }
+}
+.forest-leaf {
+  transform-origin: center;
+  transform: rotate(var(--leaf-rot, 0deg));
+  animation: leaf-drift var(--leaf-dur, 9s) ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .forest-leaf {
+    animation: none;
+  }
+}
+
+/* --- Revelado al entrar en viewport (scroll). Progresivo: si el navegador no
+   soporta timelines de scroll, el contenido se muestra normal (sin ocultarse). */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal {
+      animation: reveal-up 0.8s var(--ease-soft) both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 32%;
+    }
+  }
 }
 
 /* --- Logo Dime: animaciones (respetan prefers-reduced-motion) --- */
@@ -483,6 +529,8 @@
   --color-mint-soft: #1e332a;
   --color-honey: #e8c37c; /* ámbar cálido luminoso sobre oscuro */
   --color-honey-soft: #322a18;
+  --color-iris: #a9ade6; /* iris/periwinkle luminoso sobre oscuro */
+  --color-iris-soft: #24263c;
   --color-accent-warm: #cc9e78; /* terracota que resalta en oscuro */
   --color-accent-warm-soft: #302620;
   --color-danger: #cf8c7d;

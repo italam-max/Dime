@@ -36,3 +36,81 @@ export function BotanicalSpray({ className }: { className?: string }) {
     </svg>
   );
 }
+
+const P_LIGHT = "var(--color-primary-light, #9db8a4)";
+const P = "var(--color-primary, #5e7a6b)";
+const MINT = "var(--color-mint, #8ee6b6)";
+const PETAL = "var(--color-petal, #ecd9d1)";
+
+const IRIS = "var(--color-iris, #a9ade6)";
+const HONEY = "var(--color-honey, #e8c37c)";
+
+// Una hoja grande individual, dimensionada por el ancho de la clase. La silueta
+// crece hacia arriba; `rot` la orienta y la hoja se mece suavemente (follaje
+// vivo) con duración/retraso variables para un movimiento orgánico.
+function BigLeaf({
+  className,
+  tone,
+  op,
+  rot,
+  dur = 9,
+  delay = 0,
+}: {
+  className?: string;
+  tone: string;
+  op: number;
+  rot: number;
+  dur?: number;
+  delay?: number;
+}) {
+  return (
+    <svg
+      viewBox="-11 -31 22 33"
+      aria-hidden
+      className={cn("forest-leaf absolute", className)}
+      style={{
+        opacity: op,
+        ["--leaf-rot" as string]: `${rot}deg`,
+        ["--leaf-dur" as string]: `${dur}s`,
+        animationDelay: `${delay}s`,
+      }}
+    >
+      <path d={LEAF} fill={tone} />
+      <path
+        d={VEIN}
+        fill="none"
+        stroke="var(--color-background, #151a17)"
+        strokeWidth="1"
+        strokeLinecap="round"
+        opacity="0.45"
+      />
+    </svg>
+  );
+}
+
+// Fondo de bosque vivo: follaje grande y multicolor enmarcando el contenido
+// (dosel arriba, maleza abajo, hojas en los costados). Se mece suavemente. El
+// centro queda despejado para leer. Colócalo en un contenedor `relative` con
+// `absolute inset-0 overflow-hidden` detrás del contenido.
+export function ForestBackdrop() {
+  return (
+    <>
+      {/* Dosel superior */}
+      <BigLeaf className="-top-20 -left-12 w-64" rot={202} dur={10} delay={0} tone={P_LIGHT} op={0.16} />
+      <BigLeaf className="-top-28 left-28 w-72" rot={168} dur={12} delay={1.2} tone={MINT} op={0.13} />
+      <BigLeaf className="-top-24 right-2 w-80" rot={158} dur={11} delay={0.6} tone={IRIS} op={0.13} />
+      <BigLeaf className="-top-32 right-44 w-64" rot={196} dur={13} delay={2} tone={HONEY} op={0.1} />
+      {/* Costados */}
+      <BigLeaf className="top-[34%] -left-24 w-72" rot={82} dur={12} delay={0.4} tone={P_LIGHT} op={0.09} />
+      <BigLeaf className="top-[48%] -right-24 w-80" rot={-82} dur={13} delay={1.6} tone={IRIS} op={0.09} />
+      {/* Pétalos de acento */}
+      <BigLeaf className="top-[44%] left-6 w-40" rot={58} dur={9} delay={0.8} tone={PETAL} op={0.11} />
+      <BigLeaf className="top-[56%] right-8 w-40" rot={-58} dur={10} delay={1.4} tone={HONEY} op={0.1} />
+      {/* Maleza inferior */}
+      <BigLeaf className="-bottom-20 -left-10 w-80" rot={10} dur={11} delay={0.5} tone={P_LIGHT} op={0.16} />
+      <BigLeaf className="-bottom-28 left-40 w-64" rot={-22} dur={12} delay={1.8} tone={MINT} op={0.12} />
+      <BigLeaf className="-bottom-24 right-6 w-80" rot={-10} dur={10} delay={1} tone={P_LIGHT} op={0.16} />
+      <BigLeaf className="-bottom-32 right-48 w-64" rot={24} dur={13} delay={0.2} tone={IRIS} op={0.11} />
+    </>
+  );
+}
