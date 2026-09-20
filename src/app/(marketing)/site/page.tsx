@@ -9,7 +9,7 @@ import {
   ListTodo,
   Smartphone,
 } from "lucide-react";
-import { BotanicalSpray } from "@/components/brand/botanical";
+import { BotanicalSpray, ForestBackdrop } from "@/components/brand/botanical";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
@@ -69,20 +69,24 @@ const FEATURES: { icon: LucideIcon; title: string; body: string; accent: Accent 
 
 export default function LandingPage() {
   return (
-    <div>
+    <div className="relative">
+      {/* ── Bosque de fondo (follaje grande en capas) ── */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden>
+        <ForestBackdrop />
+      </div>
+
       {/* ── Hero ── */}
       <section className="relative overflow-hidden">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             backgroundImage:
-              "radial-gradient(60% 60% at 50% 0%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 70%)",
+              "radial-gradient(65% 60% at 50% 10%, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 72%)",
           }}
           aria-hidden
         />
-        <BotanicalSpray className="pointer-events-none absolute -top-8 right-4 w-52 rotate-[200deg] opacity-[0.09] sm:right-16" />
 
-        <div className="relative mx-auto w-full max-w-3xl px-6 pt-20 pb-16 text-center sm:pt-28">
+        <div className="relative mx-auto w-full max-w-3xl px-6 pt-24 pb-20 text-center sm:pt-32 sm:pb-24">
           <span className="inline-flex items-center gap-2 rounded-full bg-primary-soft px-3 py-1 text-xs font-medium text-primary">
             Plataforma para psicoterapia
           </span>
