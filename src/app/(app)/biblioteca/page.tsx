@@ -2,29 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen, FilePlus2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/utils";
-import { ARTICLE_CATEGORY_LABELS } from "@/lib/validations/article";
 import { ArticleFilters } from "@/components/biblioteca/article-filters";
-import { FormatBadge } from "@/components/biblioteca/format-badge";
-import { Badge } from "@/components/ui/badge";
+import { ResourceCard } from "@/components/biblioteca/resource-card";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 export const metadata: Metadata = {
   title: "Biblioteca · Dime",
 };
 
-// Biblioteca del terapeuta: artículos psicoeducativos con buscador (título) y
-// filtro por categoría vía search params.
+// Biblioteca del terapeuta: galería de recursos psicoeducativos con secciones
+// por formato, buscador (título) y filtro por categoría vía search params.
 export default async function BibliotecaPage({
   searchParams,
 }: {
@@ -89,67 +77,22 @@ export default async function BibliotecaPage({
           }
         />
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Título
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Tipo
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Categoría
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Estado
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Asignado a
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Actualizado
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {articles.map((article) => (
-                <TableRow key={article.id}>
-                  <TableCell>
-                    <Link
-                      href={`/biblioteca/${article.id}/editar`}
-                      className="font-medium text-foreground hover:text-primary hover:underline underline-offset-4"
-                    >
-                      {article.title}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    <FormatBadge format={article.format} />
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">
-                      {ARTICLE_CATEGORY_LABELS[article.category] ?? article.category}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={article.published ? "secondary" : "ghost"}>
-                      {article.published ? "Publicado" : "Borrador"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {article._count.assignments === 1
-                      ? "1 paciente"
-                      : `${article._count.assignments} pacientes`}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(article.updatedAt, "d 'de' MMM yyyy")}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <div className="stagger-children grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {articles.map((article) => (
+            <ResourceCard
+              key={article.id}
+              resource={{
+                id: article.id,
+                title: article.title,
+                format: article.format,
+                category: article.category,
+                published: article.published,
+                updatedAt: article.updatedAt,
+                assignedCount: article._count.assignments,
+              }}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
