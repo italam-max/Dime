@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { ARTICLE_CATEGORY_LABELS } from "@/lib/validations/article";
 import { ArticleFilters } from "@/components/biblioteca/article-filters";
+import { FormatBadge } from "@/components/biblioteca/format-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,14 +28,15 @@ export const metadata: Metadata = {
 export default async function BibliotecaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; categoria?: string }>;
+  searchParams: Promise<{ q?: string; categoria?: string; formato?: string }>;
 }) {
-  const { q = "", categoria = "todas" } = await searchParams;
+  const { q = "", categoria = "todas", formato = "todos" } = await searchParams;
 
   const where = {
     AND: [
       q ? { title: { contains: q } } : {},
       categoria !== "todas" ? { category: categoria } : {},
+      formato !== "todos" ? { format: formato } : {},
     ],
   };
 
@@ -44,7 +46,7 @@ export default async function BibliotecaPage({
     include: { _count: { select: { assignments: true } } },
   });
 
-  const isFiltering = q !== "" || categoria !== "todas";
+  const isFiltering = q !== "" || categoria !== "todas" || formato !== "todos";
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -53,13 +55,13 @@ export default async function BibliotecaPage({
           <h1 className="font-display text-4xl font-semibold text-foreground">Biblioteca</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Tu material psicoeducativo, privado y solo tuyo.{" "}
-            {articles.length === 1 ? "1 artículo" : `${articles.length} artículos`}.
+            {articles.length === 1 ? "1 recurso" : `${articles.length} recursos`}.
           </p>
         </div>
         <Button asChild>
           <Link href="/biblioteca/nuevo">
             <FilePlus2 data-icon="inline-start" />
-            Nuevo artículo
+            Nuevo recurso
           </Link>
         </Button>
       </div>
@@ -72,15 +74,15 @@ export default async function BibliotecaPage({
           title={isFiltering ? "Sin resultados" : "Tu biblioteca está en calma"}
           description={
             isFiltering
-              ? "No hay artículos que coincidan con tu búsqueda. Prueba con otra palabra o categoría."
-              : "Crea tu primer artículo para empezar a compartir material psicoeducativo con tus pacientes."
+              ? "No hay recursos que coincidan con tu búsqueda. Prueba con otra palabra, tipo o categoría."
+              : "Crea tu primer recurso para empezar a compartir material con tus pacientes."
           }
           action={
             !isFiltering && (
               <Button asChild>
                 <Link href="/biblioteca/nuevo">
                   <FilePlus2 data-icon="inline-start" />
-                  Nuevo artículo
+                  Nuevo recurso
                 </Link>
               </Button>
             )
@@ -93,6 +95,9 @@ export default async function BibliotecaPage({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
                   Título
+                </TableHead>
+                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
+                  Tipo
                 </TableHead>
                 <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
                   Categoría
@@ -118,6 +123,9 @@ export default async function BibliotecaPage({
                     >
                       {article.title}
                     </Link>
+                  </TableCell>
+                  <TableCell>
+                    <FormatBadge format={article.format} />
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">

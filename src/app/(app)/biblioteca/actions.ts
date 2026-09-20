@@ -18,9 +18,31 @@ function parseArticleForm(formData: FormData) {
   return articleSchema.safeParse({
     title: formData.get("title"),
     category: formData.get("category"),
+    format: formData.get("format"),
+    summary: formData.get("summary"),
     body: formData.get("body"),
+    keyPoints: formData.get("keyPoints"),
+    url: formData.get("url"),
     published: formData.get("published") === "on" || formData.get("published") === "true",
   });
+}
+
+// Normaliza los datos validados a columnas de Article: los opcionales vacíos se
+// guardan como null y, según el formato, se limpia el campo que no aplica
+// (texto en medios, enlace en texto).
+function toArticleData(input: import("@/lib/validations/article").ArticleInput) {
+  const usaEnlace = ["VIDEO", "AUDIO", "INFOGRAFIA"].includes(input.format);
+  const blank = (v?: string) => (v && v.trim() !== "" ? v.trim() : null);
+  return {
+    title: input.title,
+    category: input.category,
+    format: input.format,
+    summary: blank(input.summary),
+    published: input.published,
+    body: usaEnlace ? null : blank(input.body),
+    keyPoints: usaEnlace ? null : blank(input.keyPoints),
+    url: usaEnlace ? blank(input.url) : null,
+  };
 }
 
 // Alta de artículo. Exige sesión de terapeuta: la biblioteca es privada por cuenta.
@@ -39,7 +61,7 @@ export async function createArticle(
     };
   }
 
-  const article = await prisma.article.create({ data: parsed.data });
+  const article = await prisma.article.create({ data: toArticleData(parsed.data) });
 
   revalidatePath("/biblioteca");
   return { ok: true, articleId: article.id, message: "Artículo guardado" };
@@ -68,7 +90,7 @@ export async function updateArticle(
 
   const article = await prisma.article.update({
     where: { id },
-    data: parsed.data,
+    data: toArticleData(parsed.data),
   });
 
   revalidatePath("/biblioteca");

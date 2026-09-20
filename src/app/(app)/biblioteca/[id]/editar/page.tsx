@@ -8,7 +8,7 @@ import { ArticleForm } from "@/components/biblioteca/article-form";
 import { ArticleAssignmentSection } from "@/components/biblioteca/article-assignment-section";
 
 export const metadata: Metadata = {
-  title: "Editar artículo · Dime",
+  title: "Editar recurso · Dime",
 };
 
 export default async function EditarArticuloPage({
@@ -47,7 +47,7 @@ export default async function EditarArticuloPage({
           <ArrowLeft className="size-4" />
           Volver a la biblioteca
         </Link>
-        <h1 className="font-display text-4xl font-semibold text-foreground">Editar artículo</h1>
+        <h1 className="font-display text-4xl font-semibold text-foreground">Editar recurso</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           {article.published
             ? "Publicado: tus pacientes pueden verlo en su portal cuando se lo asignes."
@@ -61,7 +61,11 @@ export default async function EditarArticuloPage({
           id: article.id,
           title: article.title,
           category: article.category,
-          body: article.body,
+          format: article.format,
+          summary: article.summary ?? "",
+          body: article.body ?? "",
+          keyPoints: article.keyPoints ?? "",
+          url: article.url ?? "",
           published: article.published,
         }}
         submitLabel="Guardar cambios"
