@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { ForestBackdrop } from "@/components/brand/botanical";
 import { Button } from "@/components/ui/button";
-import { SITE, whatsappLink } from "@/lib/site";
+import { CONTACT_READY, SITE, agendarHref, agendarIsExternal } from "@/lib/site";
 import { BLOG_POSTS } from "@/content/blog";
 
 export const metadata: Metadata = {
@@ -121,29 +121,35 @@ const PILARES = [
 ];
 
 function jsonLd() {
-  return {
+  // Solo se publican los campos confirmados. La ubicación general (Neza) y el
+  // área servida son seguras; los datos de contacto se agregan con CONTACT_READY.
+  const base: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": ["MedicalBusiness", "Psychologist"],
     name: SITE.name,
     description: SITE.description,
     url: SITE.url,
-    telephone: SITE.phone,
-    email: SITE.email,
     priceRange: "$$",
     areaServed: [SITE.city, "Los Reyes La Paz", "Chimalhuacán", "Ciudad de México"],
     address: {
       "@type": "PostalAddress",
-      streetAddress: SITE.street,
+      ...(CONTACT_READY && SITE.street ? { streetAddress: SITE.street } : {}),
       addressLocality: SITE.city,
       addressRegion: SITE.state,
-      postalCode: SITE.postalCode,
+      ...(CONTACT_READY && SITE.postalCode ? { postalCode: SITE.postalCode } : {}),
       addressCountry: SITE.country,
     },
-    geo: { "@type": "GeoCoordinates", latitude: SITE.geo.lat, longitude: SITE.geo.lng },
-    openingHours: "Mo-Sa 09:00-20:00",
-    sameAs: [SITE.social.facebook, SITE.social.instagram],
     medicalSpecialty: "Psychiatric",
   };
+  if (CONTACT_READY) {
+    if (SITE.phone) base.telephone = SITE.phone;
+    if (SITE.email) base.email = SITE.email;
+    base.geo = { "@type": "GeoCoordinates", latitude: SITE.geo.lat, longitude: SITE.geo.lng };
+    base.openingHours = "Mo-Sa 09:00-20:00";
+    const sameAs = [SITE.social.facebook, SITE.social.instagram].filter(Boolean);
+    if (sameAs.length) base.sameAs = sameAs;
+  }
+  return base;
 }
 
 export default function LandingPage() {
@@ -185,7 +191,10 @@ export default function LandingPage() {
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg">
-              <a href={whatsappLink()} target="_blank" rel="noopener noreferrer">
+              <a
+                href={agendarHref()}
+                {...(agendarIsExternal() ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              >
                 Agendar una cita
                 <ArrowRight data-icon="inline-end" />
               </a>
@@ -367,45 +376,57 @@ export default function LandingPage() {
                 Empieza cuando estés listo
               </h2>
               <p className="mt-4 max-w-md text-muted-foreground">
-                Escríbenos y agendamos tu primera cita. Estamos en Nezahualcóyotl para acompañarte de
-                cerca.
+                {CONTACT_READY
+                  ? "Escríbenos y agendamos tu primera cita. Estamos en Nezahualcóyotl para acompañarte de cerca."
+                  : "Muy pronto publicaremos nuestros datos de contacto para agendar. Estamos en Nezahualcóyotl para acompañarte de cerca."}
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button asChild size="lg">
-                  <a href={whatsappLink()} target="_blank" rel="noopener noreferrer">
-                    <MessageCircle data-icon="inline-start" />
-                    Escribir por WhatsApp
-                  </a>
-                </Button>
-                <Button asChild variant="outline" size="lg">
-                  <a href={`tel:${SITE.phone.replace(/\s/g, "")}`}>Llamar</a>
-                </Button>
-              </div>
+              {CONTACT_READY && (
+                <div className="mt-6 flex flex-wrap gap-3">
+                  {SITE.whatsapp && (
+                    <Button asChild size="lg">
+                      <a href={agendarHref()} target="_blank" rel="noopener noreferrer">
+                        <MessageCircle data-icon="inline-start" />
+                        Escribir por WhatsApp
+                      </a>
+                    </Button>
+                  )}
+                  {SITE.phone && (
+                    <Button asChild variant="outline" size="lg">
+                      <a href={`tel:${SITE.phone.replace(/\s/g, "")}`}>Llamar</a>
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
             <dl className="space-y-4 text-sm">
               <div className="flex items-start gap-3">
                 <MapPin size={18} className="mt-0.5 shrink-0 text-primary" aria-hidden />
                 <div>
-                  <dt className="font-medium text-foreground">Dirección</dt>
+                  <dt className="font-medium text-foreground">Dónde estamos</dt>
                   <dd className="text-muted-foreground">
-                    {SITE.street}, {SITE.city}, {SITE.state}
+                    {CONTACT_READY && SITE.street ? `${SITE.street}, ` : ""}
+                    {SITE.city}, {SITE.state}
                   </dd>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <MessageCircle size={18} className="mt-0.5 shrink-0 text-primary" aria-hidden />
-                <div>
-                  <dt className="font-medium text-foreground">Teléfono</dt>
-                  <dd className="text-muted-foreground">{SITE.phone}</dd>
+              {CONTACT_READY && SITE.phone && (
+                <div className="flex items-start gap-3">
+                  <MessageCircle size={18} className="mt-0.5 shrink-0 text-primary" aria-hidden />
+                  <div>
+                    <dt className="font-medium text-foreground">Teléfono</dt>
+                    <dd className="text-muted-foreground">{SITE.phone}</dd>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <CalendarCheck size={18} className="mt-0.5 shrink-0 text-primary" aria-hidden />
-                <div>
-                  <dt className="font-medium text-foreground">Horario</dt>
-                  <dd className="text-muted-foreground">{SITE.hours}</dd>
+              )}
+              {CONTACT_READY && SITE.hours && (
+                <div className="flex items-start gap-3">
+                  <CalendarCheck size={18} className="mt-0.5 shrink-0 text-primary" aria-hidden />
+                  <div>
+                    <dt className="font-medium text-foreground">Horario</dt>
+                    <dd className="text-muted-foreground">{SITE.hours}</dd>
+                  </div>
                 </div>
-              </div>
+              )}
             </dl>
           </div>
         </div>

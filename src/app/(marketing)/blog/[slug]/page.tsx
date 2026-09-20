@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SITE, whatsappLink } from "@/lib/site";
+import { SITE, agendarHref, agendarIsExternal } from "@/lib/site";
 import { BLOG_POSTS, getPost } from "@/content/blog";
 import { formatDate } from "@/lib/utils";
 
@@ -101,7 +101,10 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         </p>
         <div className="mt-5">
           <Button asChild size="lg">
-            <a href={whatsappLink()} target="_blank" rel="noopener noreferrer">
+            <a
+              href={agendarHref()}
+              {...(agendarIsExternal() ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            >
               Agendar una cita
             </a>
           </Button>

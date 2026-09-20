@@ -1,7 +1,13 @@
 // Datos del consultorio para SEO/GEO local, JSON-LD, footer y contacto.
-// IMPORTANTE: reemplaza los valores marcados con [ ] por los datos reales de
-// DIME en Nezahualcóyotl; el SEO local depende de que el NAP (nombre, dirección,
-// teléfono) sea correcto y consistente con tu Perfil de Empresa de Google.
+//
+// Los datos de contacto (dirección, teléfono, WhatsApp, correo, horario) están
+// PENDIENTES de confirmación del cliente. Mientras CONTACT_READY sea false, el
+// sitio NO los publica (muestra un aviso de "muy pronto"). Cuando el cliente
+// confirme: completa los campos reales y pon CONTACT_READY en true. El SEO local
+// depende de que el NAP sea correcto y consistente con el Perfil de Empresa de
+// Google.
+export const CONTACT_READY: boolean = false;
+
 export const SITE = {
   name: "DIME",
   legalName: "DIME · Apoyo psicoterapéutico",
@@ -9,28 +15,40 @@ export const SITE = {
   description:
     "DIME es un grupo multidisciplinario de apoyo psicoterapéutico en Nezahualcóyotl. Acompañamos tu proceso emocional con psicoterapia individual, de pareja, infantil y evaluación psicológica.",
 
+  // Ubicación general (segura de publicar).
   city: "Nezahualcóyotl",
   state: "Estado de México",
   country: "MX",
-  // TODO: datos reales
-  street: "Av. [tu dirección], Col. [colonia]",
-  postalCode: "[C.P.]",
-  phone: "+52 55 0000 0000",
-  whatsapp: "525500000000", // solo dígitos, con código de país
-  email: "hola@psicodime.net",
   geo: { lat: 19.4003, lng: -99.0145 }, // Nezahualcóyotl (aprox.)
-  hours: "Lun a Sáb · 9:00 a 20:00",
+
+  // Pendientes de confirmación — se completan y se publican con CONTACT_READY.
+  street: "",
+  postalCode: "",
+  phone: "",
+  whatsapp: "", // solo dígitos, con código de país (ej. 525512345678)
+  email: "",
+  hours: "",
 
   url: "https://psicodime.net",
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "https://app.psicodime.net",
 
-  // Redes (reemplaza o elimina las que no uses)
+  // Redes (reemplaza o elimina las que no uses; vacío = no se publica)
   social: {
-    facebook: "https://facebook.com/",
-    instagram: "https://instagram.com/",
+    facebook: "",
+    instagram: "",
   },
-} as const;
+};
 
-export function whatsappLink(text = "Hola, quiero agendar una cita en DIME."): string {
-  return `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(text)}`;
+// Destino del botón "Agendar cita": WhatsApp cuando esté publicado; mientras
+// tanto lleva a la sección de contacto (aviso de próximamente).
+export function agendarHref(text = "Hola, quiero agendar una cita en DIME."): string {
+  if (CONTACT_READY && SITE.whatsapp) {
+    return `https://wa.me/${SITE.whatsapp}?text=${encodeURIComponent(text)}`;
+  }
+  return "/inicio#contacto";
+}
+
+// ¿El destino de agendar es un enlace externo (WhatsApp)? Define target/rel.
+export function agendarIsExternal(): boolean {
+  return CONTACT_READY && Boolean(SITE.whatsapp);
 }

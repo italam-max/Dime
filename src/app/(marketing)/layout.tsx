@@ -2,7 +2,7 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
-import { SITE, whatsappLink } from "@/lib/site";
+import { CONTACT_READY, SITE, agendarHref, agendarIsExternal } from "@/lib/site";
 
 // Shell de la web pública (psicodime.net): DIME, apoyo psicoterapéutico en
 // Nezahualcóyotl. Encabezado con navegación + acceso a la plataforma y pie con
@@ -41,7 +41,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               Contacto
             </Link>
             <Button asChild size="sm" className="ml-1">
-              <a href={whatsappLink()} target="_blank" rel="noopener noreferrer">
+              <a
+                href={agendarHref()}
+                {...(agendarIsExternal() ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              >
                 Agendar cita
               </a>
             </Button>
@@ -79,18 +82,31 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
 
           <div className="space-y-2 text-sm">
             <p className="font-medium text-foreground">Contacto</p>
-            <p className="text-muted-foreground">{SITE.phone}</p>
-            <a href={`mailto:${SITE.email}`} className="block text-muted-foreground hover:text-foreground">
-              {SITE.email}
-            </a>
-            <a
-              href={whatsappLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-primary hover:underline"
-            >
-              Escríbenos por WhatsApp
-            </a>
+            {CONTACT_READY ? (
+              <>
+                {SITE.phone && <p className="text-muted-foreground">{SITE.phone}</p>}
+                {SITE.email && (
+                  <a
+                    href={`mailto:${SITE.email}`}
+                    className="block text-muted-foreground hover:text-foreground"
+                  >
+                    {SITE.email}
+                  </a>
+                )}
+                {SITE.whatsapp && (
+                  <a
+                    href={agendarHref()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-primary hover:underline"
+                  >
+                    Escríbenos por WhatsApp
+                  </a>
+                )}
+              </>
+            ) : (
+              <p className="text-muted-foreground">Datos de contacto muy pronto.</p>
+            )}
           </div>
 
           <div className="space-y-2 text-sm">
@@ -98,12 +114,16 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
             <p className="flex items-start gap-1.5 text-muted-foreground">
               <MapPin size={15} className="mt-0.5 shrink-0 text-primary" aria-hidden />
               <span>
-                {SITE.street}
-                <br />
+                {CONTACT_READY && SITE.street && (
+                  <>
+                    {SITE.street}
+                    <br />
+                  </>
+                )}
                 {SITE.city}, {SITE.state}
               </span>
             </p>
-            <p className="text-muted-foreground">{SITE.hours}</p>
+            {CONTACT_READY && SITE.hours && <p className="text-muted-foreground">{SITE.hours}</p>}
           </div>
         </div>
         <div className="border-t border-border">
