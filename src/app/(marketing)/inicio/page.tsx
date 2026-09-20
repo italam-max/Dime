@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     "ansiedad",
     "salud mental",
   ],
-  alternates: { canonical: "/inicio" },
+  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "es_MX",

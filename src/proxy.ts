@@ -89,5 +89,7 @@ export default async function proxy(req: NextRequest) {
 
 // El proxy corre en todas las rutas excepto assets estáticos e internos.
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|_next/webpack-hmr|favicon.ico|.*\\.svg$).*)"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|_next/webpack-hmr|favicon.ico|sitemap.xml|robots.txt|.*\\.svg$).*)",
+  ],
 };
