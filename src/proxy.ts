@@ -23,8 +23,34 @@ async function readSessions(req: NextRequest): Promise<RequestSessions> {
   };
 }
 
+// Dominios de la web pública (raíz). Configurables por entorno; por defecto el
+// dominio de marketing y su www. El área de la plataforma vive en app.*.
+const MARKETING_HOSTS = (process.env.MARKETING_HOSTS ?? "psicodime.net,www.psicodime.net")
+  .split(",")
+  .map((h) => h.trim().toLowerCase())
+  .filter(Boolean);
+
 export default async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
+
+  // Web pública en el dominio raíz: se reescribe todo a /site y no exige sesión.
+  // La plataforma (app.*) conserva su comportamiento.
+  if (MARKETING_HOSTS.includes(host)) {
+    if (!path.startsWith("/site")) {
+      const url = req.nextUrl.clone();
+      url.pathname = path === "/" ? "/site" : `/site${path}`;
+      return NextResponse.rewrite(url);
+    }
+    return NextResponse.next();
+  }
+
+  // /site es la web pública: accesible sin sesión en cualquier host (útil para
+  // previsualizarla en local o desde app.* directamente).
+  if (path === "/site" || path.startsWith("/site/")) {
+    return NextResponse.next();
+  }
+
   const sessions = await readSessions(req);
 
   // Rutas públicas del portal: el alta con enlace (/portal/ingresar) solo necesita
