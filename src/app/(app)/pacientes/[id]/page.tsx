@@ -38,6 +38,7 @@ import { MaterialSection } from "@/components/pacientes/material-section";
 import { NewAppointmentDialog } from "@/components/agenda/new-appointment-dialog";
 import { AddTaskDialog } from "@/components/pacientes/add-task-dialog";
 import { FichaTabs } from "@/components/pacientes/ficha-tabs";
+import { BotanicalSpray } from "@/components/brand/botanical";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -194,13 +195,16 @@ export default async function PacienteDetallePage({
 
       {/* ── Hero: identidad + signos vitales ── */}
       <header
-        className="overflow-hidden rounded-card bg-surface shadow-soft ring-1 ring-foreground/10"
+        className="relative overflow-hidden rounded-card bg-surface shadow-soft ring-1 ring-foreground/10"
         style={{
           backgroundImage:
             "radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 55%)",
         }}
       >
-        <div className="flex flex-wrap items-start gap-5 p-6">
+        {/* Marca de agua botánica (motivo de hojas del logo) */}
+        <BotanicalSpray className="pointer-events-none absolute -top-10 -right-8 w-44 rotate-[195deg] opacity-[0.07]" />
+
+        <div className="relative flex flex-wrap items-start gap-5 p-6">
           <Monogram name={patient.nombre} last={patient.apellidos} isActive={patient.isActive} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-3">

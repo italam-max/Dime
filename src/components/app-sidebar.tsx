@@ -33,9 +33,9 @@ export function AppSidebar({
 
   return (
     <aside className="fixed inset-y-0 left-0 flex w-60 flex-col border-r border-border bg-surface">
-      <div className="px-6 py-6">
+      <div className="px-5 py-7">
         <Link href="/" aria-label="Dime · Inicio" className="inline-flex">
-          <Logo size={34} animated wordmarkClassName="text-3xl" />
+          <Logo size={46} animated wordmarkClassName="text-4xl" />
         </Link>
       </div>
 
