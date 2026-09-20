@@ -30,24 +30,26 @@ const MARKETING_HOSTS = (process.env.MARKETING_HOSTS ?? "psicodime.net,www.psico
   .map((h) => h.trim().toLowerCase())
   .filter(Boolean);
 
+// Rutas de la web pública (sin sesión). Son limpias para SEO y accesibles en
+// cualquier host (para previsualizar en local o en app.*).
+const MARKETING_PREFIXES = ["/inicio", "/blog", "/servicios", "/contacto", "/aviso-privacidad"];
+function isMarketingPath(path: string): boolean {
+  return MARKETING_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`));
+}
+
 export default async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
   const host = (req.headers.get("host") ?? "").split(":")[0].toLowerCase();
 
-  // Web pública en el dominio raíz: se reescribe todo a /site y no exige sesión.
-  // La plataforma (app.*) conserva su comportamiento.
-  if (MARKETING_HOSTS.includes(host)) {
-    if (!path.startsWith("/site")) {
-      const url = req.nextUrl.clone();
-      url.pathname = path === "/" ? "/site" : `/site${path}`;
-      return NextResponse.rewrite(url);
-    }
-    return NextResponse.next();
+  // En el dominio raíz, la home es la landing pública (reescribe / → /inicio).
+  if (MARKETING_HOSTS.includes(host) && path === "/") {
+    const url = req.nextUrl.clone();
+    url.pathname = "/inicio";
+    return NextResponse.rewrite(url);
   }
 
-  // /site es la web pública: accesible sin sesión en cualquier host (útil para
-  // previsualizarla en local o desde app.* directamente).
-  if (path === "/site" || path.startsWith("/site/")) {
+  // Rutas públicas de marketing: sin sesión, en cualquier host.
+  if (isMarketingPath(path)) {
     return NextResponse.next();
   }
 
