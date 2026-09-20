@@ -193,9 +193,15 @@ export default async function PacienteDetallePage({
       </Link>
 
       {/* ── Hero: identidad + signos vitales ── */}
-      <header className="overflow-hidden rounded-card bg-surface shadow-soft ring-1 ring-foreground/5">
+      <header
+        className="overflow-hidden rounded-card bg-surface shadow-soft ring-1 ring-foreground/10"
+        style={{
+          backgroundImage:
+            "radial-gradient(90% 120% at 0% 0%, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 55%)",
+        }}
+      >
         <div className="flex flex-wrap items-start gap-5 p-6">
-          <Monogram name={patient.nombre} last={patient.apellidos} />
+          <Monogram name={patient.nombre} last={patient.apellidos} isActive={patient.isActive} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="font-display text-4xl font-semibold leading-none text-foreground">
@@ -239,8 +245,8 @@ export default async function PacienteDetallePage({
         {/* Signos vitales: anillos + cifras clave */}
         <div className="border-t border-border p-6">
           <div className="flex items-center gap-8">
-            <ProgressRing value={asistencia} label="Asistencia" tone="var(--color-primary)" />
-            <ProgressRing value={cumplimiento} label="Adherencia" tone="var(--color-primary-light)" />
+            <ProgressRing value={asistencia} label="Asistencia" tone="var(--color-mint)" />
+            <ProgressRing value={cumplimiento} label="Adherencia" tone="var(--color-primary)" />
           </div>
           <dl className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-4">
             <StatTile
@@ -248,6 +254,7 @@ export default async function PacienteDetallePage({
               label="Próxima cita"
               value={proximaCita ? formatDate(proximaCita.startAt, "d MMM") : "Sin agendar"}
               sub={proximaCita ? formatDate(proximaCita.startAt, "h:mm a") : undefined}
+              accent="sage"
               muted={!proximaCita}
             />
             <StatTile
@@ -255,20 +262,23 @@ export default async function PacienteDetallePage({
               label="Sesiones"
               value={String(sesionesCompletadas)}
               sub="completadas"
+              accent="mint"
             />
             <StatTile
               icon={trend && trend.delta > 0 ? TrendingUp : TrendingDown}
               label="Evolución"
               value={trend ? `${trend.delta > 0 ? "+" : ""}${trend.delta}` : "—"}
               sub={trend ? `${trend.code} · ${trend.delta <= 0 ? "mejora" : "atención"}` : "sin datos"}
-              accent={Boolean(trend && trend.delta > 0)}
+              accent={trend && trend.delta > 0 ? "warm" : "mint"}
+              alert={Boolean(trend && trend.delta > 0)}
             />
             <StatTile
               icon={Wallet}
               label="Saldo"
               value={formatCurrency(saldoPendiente)}
               sub={saldoPendiente > 0 ? "pendiente" : "al corriente"}
-              accent={saldoPendiente > 0}
+              accent={saldoPendiente > 0 ? "warm" : "sage"}
+              alert={saldoPendiente > 0}
             />
           </dl>
         </div>
@@ -625,7 +635,10 @@ function ProgressRing({
             }}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums text-foreground">
+        <span
+          className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums text-foreground"
+          style={{ textShadow: `0 0 16px color-mix(in srgb, ${tone} 35%, transparent)` }}
+        >
           {value !== null ? `${value}%` : "—"}
         </span>
       </div>
@@ -636,32 +649,52 @@ function ProgressRing({
   );
 }
 
-// Celda de la tira de signos clave.
+// Acento por tono de signo vital (mismo lenguaje que los KPIs del dashboard).
+type StatAccent = "sage" | "mint" | "honey" | "warm";
+const STAT_ACCENT: Record<StatAccent, { chip: string; text: string; glow: string }> = {
+  sage: { chip: "bg-primary-soft text-primary", text: "text-primary", glow: "var(--color-primary)" },
+  mint: { chip: "bg-mint-soft text-mint", text: "text-mint", glow: "var(--color-mint)" },
+  honey: { chip: "bg-honey-soft text-honey", text: "text-honey", glow: "var(--color-honey)" },
+  warm: {
+    chip: "bg-accent-warm-soft text-accent-warm",
+    text: "text-accent-warm",
+    glow: "var(--color-accent-warm)",
+  },
+};
+
+// Signo vital: tarjeta iluminada con chip de icono que brilla y resplandor del
+// acento. Cuando `alert`, la cifra se colorea para pedir atención.
 function StatTile({
   icon: Icon,
   label,
   value,
   sub,
-  accent = false,
+  accent = "sage",
+  alert = false,
   muted = false,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
   sub?: string;
-  accent?: boolean;
+  accent?: StatAccent;
+  alert?: boolean;
   muted?: boolean;
 }) {
+  const a = STAT_ACCENT[accent];
   return (
-    <div>
+    <div
+      className="relative overflow-hidden rounded-control bg-surface-muted/50 p-3.5 ring-1 ring-foreground/5"
+      style={{
+        backgroundImage: `radial-gradient(130% 120% at 100% 0%, color-mix(in srgb, ${a.glow} 16%, transparent), transparent 65%)`,
+      }}
+    >
       <div className="flex items-center gap-2">
         <span
-          className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded-md",
-            accent ? "bg-accent-warm-soft text-accent-warm" : "bg-primary-soft text-primary"
-          )}
+          className={cn("flex size-7 shrink-0 items-center justify-center rounded-md", a.chip)}
+          style={{ boxShadow: `0 0 16px -6px color-mix(in srgb, ${a.glow} 60%, transparent)` }}
         >
-          <Icon size={14} strokeWidth={1.9} aria-hidden />
+          <Icon size={15} strokeWidth={1.9} aria-hidden />
         </span>
         <p className="truncate text-[0.7rem] font-semibold uppercase tracking-widest text-muted-foreground">
           {label}
@@ -669,8 +702,8 @@ function StatTile({
       </div>
       <p
         className={cn(
-          "mt-2 truncate text-2xl font-semibold leading-none tabular-nums",
-          accent ? "text-accent-warm" : muted ? "text-muted-foreground" : "text-foreground"
+          "mt-2.5 truncate text-2xl font-semibold leading-none tabular-nums",
+          alert ? a.text : muted ? "text-muted-foreground" : "text-foreground"
         )}
       >
         {value}
@@ -708,12 +741,15 @@ function SectionCard({
   );
 }
 
-function Monogram({ name, last }: { name: string; last: string }) {
+function Monogram({ name, last, isActive = true }: { name: string; last: string; isActive?: boolean }) {
   const initials = `${name.charAt(0)}${last.charAt(0)}`.toUpperCase();
   return (
     <span
       aria-hidden
-      className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-light font-display text-2xl font-semibold text-primary-foreground shadow-soft"
+      className={cn(
+        "flex size-16 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-primary-light font-display text-2xl font-semibold text-primary-foreground shadow-soft ring-2 ring-offset-2 ring-offset-surface",
+        isActive ? "ring-primary/40" : "ring-border"
+      )}
     >
       {initials}
     </span>
