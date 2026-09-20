@@ -24,41 +24,41 @@ export function WeeklyAttendanceChart({ data }: { data: AttendanceChartDatum[] }
     <div style={{ width: "100%", height: 280, fontFamily: "Inter, sans-serif" }}>
       <ResponsiveContainer>
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-          <CartesianGrid vertical={false} stroke="#E8E5DE" />
+          <CartesianGrid vertical={false} stroke="var(--color-border)" />
           <XAxis
             dataKey="semana"
             tickLine={false}
             axisLine={false}
             minTickGap={16}
-            tick={{ fontSize: 12, fill: "#8A857C" }}
+            tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
           />
           <YAxis
             allowDecimals={false}
             tickLine={false}
             axisLine={false}
             width={32}
-            tick={{ fontSize: 12, fill: "#8A857C" }}
+            tick={{ fontSize: 12, fill: "var(--color-muted-foreground)" }}
           />
           <Tooltip
-            cursor={{ fill: "rgba(94,122,107,0.06)" }}
+            cursor={{ fill: "color-mix(in srgb, var(--color-primary) 10%, transparent)" }}
             content={<ChartTooltip />}
           />
           <Legend
             iconType="circle"
             iconSize={8}
-            wrapperStyle={{ fontSize: 12, color: "#8A857C" }}
+            wrapperStyle={{ fontSize: 12, color: "var(--color-muted-foreground)" }}
           />
           <Bar
             name="Completadas"
             dataKey="completadas"
-            fill="#5E7A6B"
+            fill="var(--color-mint)"
             radius={[3, 3, 0, 0]}
             maxBarSize={20}
           />
           <Bar
             name="No asistieron"
             dataKey="noAsistieron"
-            fill="#B08968"
+            fill="var(--color-accent-warm)"
             radius={[3, 3, 0, 0]}
             maxBarSize={20}
           />

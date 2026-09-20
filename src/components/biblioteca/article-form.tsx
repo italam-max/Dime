@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Eye } from "lucide-react";
 import type { ArticleFormState } from "@/app/(app)/biblioteca/actions";
-import { MarkdownContent } from "@/components/biblioteca/markdown-content";
+import { ResourceContent } from "@/components/biblioteca/resource-content";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,14 +19,26 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { ARTICLE_CATEGORIES, ARTICLE_CATEGORY_LABELS } from "@/lib/validations/article";
+import {
+  ARTICLE_CATEGORIES,
+  ARTICLE_CATEGORY_LABELS,
+  ARTICLE_FORMAT_HELP,
+  ARTICLE_FORMAT_LABELS,
+  ARTICLE_FORMATS,
+  FORMATS_WITH_URL,
+  type ArticleFormat,
+} from "@/lib/validations/article";
 
 // Valores iniciales para edición.
 export interface ArticleInitialValues {
   id: string;
   title: string;
   category: string;
+  format: string;
+  summary: string;
   body: string;
+  keyPoints: string;
+  url: string;
   published: boolean;
 }
 
@@ -38,9 +50,8 @@ interface ArticleFormProps {
   cancelHref: string;
 }
 
-// Formulario de alta/edición de artículo: validación en el Server Action
-// (zod) y vista previa del markdown en vivo a un lado. Al crear, navega a la
-// edición para poder asignarlo a pacientes desde ahí.
+// Formulario de alta/edición de recurso: campos guiados según el formato
+// (sin markdown). Validación en el Server Action (zod) y vista previa en vivo.
 export function ArticleForm({
   action,
   article,
@@ -53,8 +64,16 @@ export function ArticleForm({
 
   const [title, setTitle] = useState(article?.title ?? "");
   const [category, setCategory] = useState(article?.category ?? "");
+  const [format, setFormat] = useState<ArticleFormat>(
+    (article?.format as ArticleFormat) ?? "ARTICULO"
+  );
+  const [summary, setSummary] = useState(article?.summary ?? "");
   const [body, setBody] = useState(article?.body ?? "");
+  const [keyPoints, setKeyPoints] = useState(article?.keyPoints ?? "");
+  const [url, setUrl] = useState(article?.url ?? "");
   const [published, setPublished] = useState(article?.published ?? false);
+
+  const usaEnlace = FORMATS_WITH_URL.includes(format);
 
   useEffect(() => {
     if (state.ok && state.articleId) {
@@ -68,7 +87,11 @@ export function ArticleForm({
     const formData = new FormData();
     formData.set("title", title);
     formData.set("category", category);
+    formData.set("format", format);
+    formData.set("summary", summary);
     formData.set("body", body);
+    formData.set("keyPoints", keyPoints);
+    formData.set("url", url);
     if (published) formData.set("published", "on");
     if (article) formData.set("id", article.id);
     formAction(formData);
@@ -91,6 +114,23 @@ export function ArticleForm({
             <CardTitle>Contenido</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Tipo de recurso</Label>
+              <Select value={format} onValueChange={(v) => setFormat(v as ArticleFormat)}>
+                <SelectTrigger className="w-full" aria-invalid={!!state.errors?.format}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ARTICLE_FORMATS.map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {ARTICLE_FORMAT_LABELS[f]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{ARTICLE_FORMAT_HELP[format]}</p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="title">Título</Label>
               <Input
@@ -126,19 +166,80 @@ export function ArticleForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="body">Cuerpo (markdown)</Label>
+              <Label htmlFor="summary">Resumen breve</Label>
               <Textarea
-                id="body"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder={"## ¿En qué consiste?\n\nEscribe aquí el contenido…\n\n- Un punto clave\n- Otro punto clave"}
-                className="min-h-80 font-mono text-xs leading-relaxed"
-                aria-invalid={!!state.errors?.body}
+                id="summary"
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                placeholder="Una o dos frases que le digan al paciente de qué trata."
+                maxLength={300}
+                className="min-h-16"
+                aria-invalid={!!state.errors?.summary}
               />
-              <p className={errorClass(state.errors?.body)} role="alert">
-                {state.errors?.body?.[0]}
+              <p className={errorClass(state.errors?.summary)} role="alert">
+                {state.errors?.summary?.[0]}
               </p>
             </div>
+
+            {usaEnlace ? (
+              <div className="space-y-2">
+                <Label htmlFor="url">Enlace del recurso</Label>
+                <Input
+                  id="url"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  placeholder="https://…"
+                  inputMode="url"
+                  aria-invalid={!!state.errors?.url}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {format === "VIDEO"
+                    ? "Pega el enlace de YouTube o Vimeo; se mostrará el video incrustado."
+                    : format === "AUDIO"
+                      ? "Pega el enlace del audio (por ejemplo un mp3)."
+                      : "Pega el enlace de la imagen o el PDF de la infografía."}
+                </p>
+                <p className={errorClass(state.errors?.url)} role="alert">
+                  {state.errors?.url?.[0]}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="body">Contenido</Label>
+                  <Textarea
+                    id="body"
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    placeholder={
+                      "Escribe en párrafos normales.\n\nDeja una línea en blanco para separar un párrafo del siguiente."
+                    }
+                    className="min-h-56 leading-relaxed"
+                    aria-invalid={!!state.errors?.body}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Sin formato técnico: solo escribe. Una línea en blanco = nuevo párrafo.
+                  </p>
+                  <p className={errorClass(state.errors?.body)} role="alert">
+                    {state.errors?.body?.[0]}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="keyPoints">Puntos clave (opcional)</Label>
+                  <Textarea
+                    id="keyPoints"
+                    value={keyPoints}
+                    onChange={(e) => setKeyPoints(e.target.value)}
+                    placeholder={"Un punto por línea\nOtro punto importante"}
+                    className="min-h-24"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Un punto por línea. Se mostrarán como lista con viñetas.
+                  </p>
+                </div>
+              </>
+            )}
 
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               <input
@@ -160,13 +261,16 @@ export function ArticleForm({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {body.trim() === "" ? (
-              <p className="text-sm italic text-muted-foreground">
-                Escribe en el editor para ver cómo se verá el artículo.
-              </p>
-            ) : (
-              <MarkdownContent markdown={body} />
+            {title.trim() && (
+              <h3 className="mb-4 font-display text-2xl font-semibold text-foreground">{title}</h3>
             )}
+            <ResourceContent
+              format={format}
+              summary={summary}
+              body={body}
+              keyPoints={keyPoints}
+              url={url}
+            />
           </CardContent>
         </Card>
       </div>

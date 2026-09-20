@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { BookOpen, Check } from "lucide-react";
+import { Check } from "lucide-react";
 import { getPortalPatient } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ARTICLE_CATEGORY_LABELS } from "@/lib/validations/article";
+import { FormatBadge } from "@/components/biblioteca/format-badge";
 
 // Material asignado que ve el paciente en su home: solo artículos publicados.
 // La primera apertura ya quedó registrada en su momento; aquí solo se indica.
@@ -13,17 +14,19 @@ export async function AssignedMaterial() {
   const assignments = await prisma.articleAssignment.findMany({
     where: { patientId: patient.id, article: { published: true } },
     orderBy: { assignedAt: "desc" },
-    include: { article: { select: { id: true, title: true, category: true } } },
+    include: {
+      article: { select: { id: true, title: true, category: true, format: true } },
+    },
   });
 
   if (assignments.length === 0) {
     return (
       <section className="rounded-card bg-surface p-6 shadow-soft">
         <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Material para ti
+          Recursos recomendados para ti
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          No tienes material asignado por ahora.
+          Aún no tienes recursos asignados. Tu terapeuta te compartirá material aquí.
         </p>
       </section>
     );
@@ -32,7 +35,7 @@ export async function AssignedMaterial() {
   return (
     <section className="rounded-card bg-surface p-6 shadow-soft">
       <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-        Material para ti
+        Recursos recomendados para ti
       </h2>
       <ul className="mt-3 divide-y divide-border">
         {assignments.map((assignment) => (
@@ -41,21 +44,16 @@ export async function AssignedMaterial() {
               href={`/portal/material/${assignment.article.id}`}
               className="group flex items-center justify-between gap-4 py-3 first:pt-1 last:pb-0"
             >
-              <div className="flex min-w-0 items-start gap-3">
-                <BookOpen
-                  size={20}
-                  strokeWidth={1.6}
-                  className="mt-0.5 shrink-0 text-primary"
-                  aria-hidden
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground group-hover:text-primary">
-                    {assignment.article.title}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground group-hover:text-primary">
+                  {assignment.article.title}
+                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <FormatBadge format={assignment.article.format} />
+                  <span className="text-xs text-muted-foreground">
                     {ARTICLE_CATEGORY_LABELS[assignment.article.category] ??
                       assignment.article.category}
-                  </p>
+                  </span>
                 </div>
               </div>
               {assignment.readAt ? (

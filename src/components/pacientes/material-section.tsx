@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/utils";
 import { ARTICLE_CATEGORY_LABELS } from "@/lib/validations/article";
+import { FormatBadge } from "@/components/biblioteca/format-badge";
 import {
   MaterialAssignControl,
   MaterialUnassignButton,
@@ -23,7 +24,9 @@ export async function MaterialSection({ patientId }: { patientId: string }) {
       where: { patientId },
       orderBy: { assignedAt: "desc" },
       include: {
-        article: { select: { id: true, title: true, category: true, published: true } },
+        article: {
+          select: { id: true, title: true, category: true, format: true, published: true },
+        },
       },
     }),
     prisma.article.findMany({
@@ -42,7 +45,7 @@ export async function MaterialSection({ patientId }: { patientId: string }) {
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
           <BookOpen size={18} strokeWidth={1.8} aria-hidden />
         </span>
-        <CardTitle className="flex-1 text-lg">Material psicoeducativo</CardTitle>
+        <CardTitle className="flex-1">Material psicoeducativo</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {assignments.length === 0 ? (
@@ -64,13 +67,14 @@ export async function MaterialSection({ patientId }: { patientId: string }) {
                   <p className="truncate text-sm font-medium text-foreground">
                     {assignment.article.title}
                   </p>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <FormatBadge format={assignment.article.format} />
                     <span>{ARTICLE_CATEGORY_LABELS[assignment.article.category] ?? assignment.article.category}</span>
                     <span aria-hidden>·</span>
                     <span>
                       Asignado el {formatDate(assignment.assignedAt, "d 'de' MMM yyyy")}
                     </span>
-                  </p>
+                  </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge variant={assignment.readAt ? "secondary" : "ghost"}>

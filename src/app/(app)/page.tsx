@@ -24,8 +24,9 @@ import {
   CheckCircle2,
   ClipboardList,
   ListTodo,
+  Users,
+  Wallet,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppointmentsByStatusChart } from "@/components/dashboard/appointments-by-status-chart";
 import { IncomeChart } from "@/components/dashboard/income-chart";
@@ -39,8 +40,17 @@ export const metadata: Metadata = {
   title: "Panel · Dime",
 };
 
+// La hora se calcula en la zona del consultorio (México), no en la del
+// servidor: en producción el contenedor corre en UTC y el saludo saldría a
+// deshoras. Intl da la hora local de esa zona sin depender del TZ del proceso.
 function saludoPara(date: Date): string {
-  const hour = date.getHours();
+  const hour = Number(
+    new Intl.DateTimeFormat("es-MX", {
+      timeZone: "America/Mexico_City",
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(date)
+  );
   if (hour < 12) return "Buenos días";
   if (hour < 19) return "Buenas tardes";
   return "Buenas noches";
@@ -59,15 +69,23 @@ const ETIQUETA_TIPO_CITA: Record<string, string> = {
   ONLINE: "En línea",
 };
 
-const clasesBadgeCita = (status: string): string =>
-  cn(
-    "rounded-4xl border-transparent",
-    status === "COMPLETADA" && "bg-primary-soft text-primary",
-    (status === "PENDIENTE" || status === "CONFIRMADA") &&
-      "bg-surface-muted text-muted-foreground",
-    (status === "NO_ASISTIO" || status === "CANCELADA") &&
-      "bg-black/5 text-muted-foreground"
-  );
+// Estilo por estado de cita: toda la fila se tiñe del color del estado
+// (confirmada = verde salvia, pendiente = amarillo miel, completada = menta,
+// no asistió = terracota, cancelada = apagado). Así se lee el estado de un
+// vistazo, con la fecha y la hora en ese mismo color.
+const ESTADO_CITA_STYLE: Record<
+  string,
+  { border: string; bg: string; text: string }
+> = {
+  CONFIRMADA: { border: "border-primary", bg: "bg-primary-soft", text: "text-primary" },
+  PENDIENTE: { border: "border-honey", bg: "bg-honey-soft", text: "text-honey" },
+  COMPLETADA: { border: "border-mint", bg: "bg-mint-soft", text: "text-mint" },
+  NO_ASISTIO: { border: "border-accent-warm", bg: "bg-accent-warm-soft", text: "text-accent-warm" },
+  CANCELADA: { border: "border-border", bg: "bg-surface-muted", text: "text-muted-foreground" },
+};
+
+const estiloCita = (status: string) =>
+  ESTADO_CITA_STYLE[status] ?? ESTADO_CITA_STYLE.CANCELADA;
 
 // Comparación sutil con el mes anterior: porcentaje para conteos/dinero,
 // puntos para la tasa de asistencia.
@@ -262,6 +280,14 @@ export default async function DashboardPage() {
 
   // ── Tareas de la semana (pendientes que vencen esta semana o están atrasadas) ──
   const finSemana = endOfWeek(ahora, { weekStartsOn: 1 });
+  const inicioSemana = startOfWeek(ahora, { weekStartsOn: 1 });
+  // Tareas que los pacientes completaron dentro de esta semana (pulso de cumplimiento).
+  const tareasCompletadasSemana = await prisma.task.count({
+    where: {
+      completedAt: { gte: inicioSemana, lte: finSemana },
+      patient: { isActive: true },
+    },
+  });
   const tareasSemana = await prisma.task.findMany({
     where: {
       completedAt: null,
@@ -320,11 +346,15 @@ export default async function DashboardPage() {
         <KpiCard
           label="Citas del mes"
           value={String(citasMes)}
+          icon={CalendarDays}
+          accent="sage"
           delta={deltaMesPasado(citasMes, citasMesAnt, "pct")}
         />
         <KpiCard
           label="Tasa de asistencia"
           value={tasaMes === null ? "—" : `${Math.round(tasaMes)}%`}
+          icon={CheckCircle2}
+          accent="mint"
           delta={
             tasaMes === null || tasaMesAnt === null
               ? undefined
@@ -334,71 +364,21 @@ export default async function DashboardPage() {
         <KpiCard
           label="Ingresos del mes"
           value={formatCurrency(Math.round(cobradoMes))}
+          icon={Wallet}
+          accent="warm"
           delta={deltaMesPasado(Math.round(cobradoMes), Math.round(cobradoMesAnt), "pct")}
         />
         <KpiCard
           label="Pacientes activos"
           value={String(pacientesActivos)}
+          icon={Users}
+          accent="honey"
           delta={{ direction: "flat", text: `de ${totalPacientes} pacientes registrados` }}
         />
       </div>
 
-      {/* ── Gráficas ── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
-              Ingresos por mes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {hayIngresos ? (
-              <IncomeChart data={datosIngresos} />
-            ) : (
-              <p className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
-                Aún no hay ingresos registrados en los últimos 12 meses.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
-              Citas por estado
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {citasPorEstado.length > 0 ? (
-              <AppointmentsByStatusChart data={citasPorEstado} />
-            ) : (
-              <p className="flex h-[280px] items-center justify-center text-center text-sm text-muted-foreground">
-                Este mes aún no tienes citas agendadas.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
-              Asistencia semanal
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {hayAsistencia ? (
-              <WeeklyAttendanceChart data={asistenciaSemanal} />
-            ) : (
-              <p className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
-                Las sesiones completadas y las inasistencias aparecerán aquí.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Próximas citas, saldos pendientes, tareas y evaluaciones de la semana ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {/* ── Prioridad clínica: próximas citas y distribución por estado ── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card className="hover-lift">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
@@ -432,96 +412,94 @@ export default async function DashboardPage() {
                 </Link>
               </div>
             ) : (
-              <ul className="divide-y divide-border">
-                {proximasCitas.map((cita) => (
-                  <li
-                    key={cita.id}
-                    className="flex items-center gap-4 py-3 first:pt-0 last:pb-0"
-                  >
-                    <div className="w-24 shrink-0">
-                      <p className="text-sm font-medium text-foreground">
-                        {format(cita.startAt, "d 'de' MMM", { locale: es })}
-                      </p>
-                      <p className="text-xs tabular-nums text-muted-foreground">
-                        {format(cita.startAt, "h:mm a", { locale: es })}
-                      </p>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/pacientes/${cita.patient.id}`}
-                        className="block truncate text-sm font-medium text-foreground transition-colors hover:text-primary"
-                      >
-                        {patientFullName(cita.patient)}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {ETIQUETA_TIPO_CITA[cita.type] ?? cita.type}
-                      </p>
-                    </div>
-                    <Badge className={clasesBadgeCita(cita.status)}>
-                      {ETIQUETA_ESTADO_CITA[cita.status] ?? cita.status}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="hover-lift">
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
-              Saldos pendientes
-            </CardTitle>
-            <Link
-              href="/pagos"
-              className="flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:underline"
-            >
-              Ver pagos
-              <ArrowRight size={14} aria-hidden />
-            </Link>
-          </CardHeader>
-          <CardContent>
-            {saldosPendientes.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <CheckCircle2
-                  size={20}
-                  strokeWidth={1.6}
-                  className="text-primary"
-                  aria-hidden
-                />
-                <p className="max-w-56 text-sm text-muted-foreground">
-                  Todos tus pacientes están al corriente. Puedes respirar tranquilo.
-                </p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-border">
-                {saldosPendientes.map((saldo) => (
-                  <li
-                    key={saldo.id}
-                    className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
-                  >
-                    <Link
-                      href={`/pacientes/${saldo.id}`}
-                      className="min-w-0 truncate text-sm font-medium text-foreground transition-colors hover:text-primary"
+              <ul className="space-y-2">
+                {proximasCitas.map((cita) => {
+                  const esHoy = isToday(cita.startAt);
+                  const esManana = isTomorrow(cita.startAt);
+                  const diaLabel = esHoy
+                    ? "Hoy"
+                    : esManana
+                      ? "Mañana"
+                      : format(cita.startAt, "EEE d 'de' MMM", { locale: es });
+                  const s = estiloCita(cita.status);
+                  return (
+                    <li
+                      key={cita.id}
+                      className={cn(
+                        "flex items-center gap-4 rounded-control border-l-[3px] py-2.5 pr-3 pl-3",
+                        s.border,
+                        s.bg
+                      )}
                     >
-                      {saldo.nombre}
-                    </Link>
-                    <span className="shrink-0 text-sm font-medium tabular-nums text-accent-warm">
-                      {formatCurrency(Math.round(saldo.deuda))}
-                    </span>
-                  </li>
-                ))}
+                      <div className="w-32 shrink-0">
+                        <p className={cn("text-xs font-semibold uppercase tracking-wide", s.text)}>
+                          {diaLabel}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-0.5 text-xl font-bold tabular-nums whitespace-nowrap",
+                            s.text
+                          )}
+                        >
+                          {format(cita.startAt, "h:mm a", { locale: es })}
+                        </p>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <Link
+                          href={`/pacientes/${cita.patient.id}`}
+                          className="block truncate text-sm font-medium text-foreground transition-colors hover:text-primary"
+                        >
+                          {patientFullName(cita.patient)}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          {ETIQUETA_TIPO_CITA[cita.type] ?? cita.type}
+                        </p>
+                      </div>
+                      <span className={cn("inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold", s.text)}>
+                        <span className="size-1.5 rounded-full bg-current" aria-hidden />
+                        {ETIQUETA_ESTADO_CITA[cita.status] ?? cita.status}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </CardContent>
         </Card>
 
         <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
+              Citas por estado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {citasPorEstado.length > 0 ? (
+              <AppointmentsByStatusChart data={citasPorEstado} />
+            ) : (
+              <p className="flex h-[280px] items-center justify-center text-center text-sm text-muted-foreground">
+                Este mes aún no tienes citas agendadas.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Seguimiento de la semana: tareas y evaluaciones (al principio) ── */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
               Tareas de la semana
             </CardTitle>
-            <ListTodo size={18} strokeWidth={1.6} className="text-muted-foreground" aria-hidden />
+            {tareasCompletadasSemana > 0 ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-mint-soft px-2.5 py-1 text-xs font-medium text-mint">
+                <CheckCircle2 size={13} strokeWidth={2} aria-hidden />
+                {tareasCompletadasSemana} completada{tareasCompletadasSemana === 1 ? "" : "s"}
+              </span>
+            ) : (
+              <ListTodo size={18} strokeWidth={1.6} className="text-muted-foreground" aria-hidden />
+            )}
           </CardHeader>
           <CardContent>
             {tareasSemana.length === 0 ? (
@@ -625,6 +603,93 @@ export default async function DashboardPage() {
                   );
                 })}
               </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── Asistencia semanal ── */}
+      <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
+              Asistencia semanal
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {hayAsistencia ? (
+              <WeeklyAttendanceChart data={asistenciaSemanal} />
+            ) : (
+              <p className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+                Las sesiones completadas y las inasistencias aparecerán aquí.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+      {/* ── Finanzas: saldos pendientes junto a ingresos por mes ── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="hover-lift">
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
+              Saldos pendientes
+            </CardTitle>
+            <Link
+              href="/pagos"
+              className="flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:underline"
+            >
+              Ver pagos
+              <ArrowRight size={14} aria-hidden />
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {saldosPendientes.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <CheckCircle2
+                  size={20}
+                  strokeWidth={1.6}
+                  className="text-primary"
+                  aria-hidden
+                />
+                <p className="max-w-56 text-sm text-muted-foreground">
+                  Todos tus pacientes están al corriente. Puedes respirar tranquilo.
+                </p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-border">
+                {saldosPendientes.map((saldo) => (
+                  <li
+                    key={saldo.id}
+                    className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+                  >
+                    <Link
+                      href={`/pacientes/${saldo.id}`}
+                      className="min-w-0 truncate text-sm font-medium text-foreground transition-colors hover:text-primary"
+                    >
+                      {saldo.nombre}
+                    </Link>
+                    <span className="shrink-0 text-sm font-medium tabular-nums text-accent-warm">
+                      {formatCurrency(Math.round(saldo.deuda))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="font-display text-xl font-medium normal-case text-foreground">
+              Ingresos por mes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {hayIngresos ? (
+              <IncomeChart data={datosIngresos} />
+            ) : (
+              <p className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
+                Aún no hay ingresos registrados en los últimos 12 meses.
+              </p>
             )}
           </CardContent>
         </Card>

@@ -5,7 +5,7 @@ import { createArticle } from "@/app/(app)/biblioteca/actions";
 import { ArticleForm } from "@/components/biblioteca/article-form";
 
 export const metadata: Metadata = {
-  title: "Nuevo artículo · Dime",
+  title: "Nuevo recurso · Dime",
 };
 
 export default function NuevoArticuloPage() {
@@ -19,17 +19,17 @@ export default function NuevoArticuloPage() {
           <ArrowLeft className="size-4" />
           Volver a la biblioteca
         </Link>
-        <h1 className="font-display text-4xl font-semibold text-foreground">Nuevo artículo</h1>
+        <h1 className="font-display text-4xl font-semibold text-foreground">Nuevo recurso</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Escribe en markdown y revisa la vista previa a un lado. Un artículo solo
+          Elige el tipo de recurso y llena los campos; revisa la vista previa a un lado. Solo
           es visible para tus pacientes cuando está publicado.
         </p>
       </div>
 
       <ArticleForm
         action={createArticle}
-        submitLabel="Guardar artículo"
-        successMessage="Artículo guardado"
+        submitLabel="Guardar recurso"
+        successMessage="Recurso guardado"
         cancelHref="/biblioteca"
       />
     </div>

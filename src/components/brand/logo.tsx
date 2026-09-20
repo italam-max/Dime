@@ -92,7 +92,7 @@ export function LogoMark({
 }
 
 /** Hojita decorativa reutilizable (nervadura opcional). Tamaño en em. */
-function LeafAccent({
+export function LeafAccent({
   className,
   em,
   tone = "var(--color-primary-light, #9db8a4)",

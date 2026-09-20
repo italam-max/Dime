@@ -20,6 +20,12 @@
   --color-primary-light: #9db8a4; /* salvia clara (hoja del logo) */
   --color-petal: #ecd9d1; /* blush del pétalo (logo, acento cálido muy suave) */
 
+  --color-mint: #2f9e6f; /* menta fresca (hoja viva, acentos de dato positivo) */
+  --color-mint-soft: #e2f3ea;
+
+  --color-honey: #b98a2e; /* miel/ámbar botánico (ingresos, energía cálida) */
+  --color-honey-soft: #f6eeda;
+
   --color-accent-warm: #b08968; /* terracota suave (saldo pendiente, avisos) */
   --color-accent-warm-soft: #f4ebe2;
 
@@ -422,36 +428,64 @@
   --sidebar-ring: #5e7a6b;
 }
 
+/* Tema oscuro "Calma": base verde-carbón profunda (no negro puro), texto
+   porcelana cálido (no blanco puro, menos glare) y acentos salvia/terracota
+   atenuados. Pensado para sesiones largas: elegante y de bajo cansancio visual. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
+
+  --background: #151a17; /* verde-carbón profundo */
+  --foreground: #e6e3db; /* porcelana cálida */
+  --card: #1d221f; /* panel elevado */
+  --card-foreground: #e6e3db;
+  --popover: #1d221f;
+  --popover-foreground: #e6e3db;
+  --primary: #96c0a7; /* salvia que resalta suave sobre oscuro */
+  --primary-foreground: #101713; /* verde profundo sobre botón salvia */
+  --secondary: #262c28;
+  --secondary-foreground: #e6e3db;
+  --muted: #262c28;
+  --muted-foreground: #9aa39b;
+  --accent: #262c28;
+  --accent-foreground: #e6e3db;
+  --destructive: #cf8c7d; /* quemado suave, legible en oscuro */
+  --border: #2c332e;
+  --input: #2c332e;
+  --ring: #96c0a7;
+  --chart-1: #96c0a7;
+  --chart-2: #cc9e78;
+  --chart-3: #cf8c7d;
+  --chart-4: #9aa39b;
+  --chart-5: #2f3a33;
+  --sidebar: #171c19;
+  --sidebar-foreground: #cdd3cc;
+  --sidebar-primary: #96c0a7;
+  --sidebar-primary-foreground: #101713;
+  --sidebar-accent: #232d27;
+  --sidebar-accent-foreground: #cfe0d5;
+  --sidebar-border: #262c28;
+  --sidebar-ring: #96c0a7;
+
+  /* Tokens propios del design system "Calma" (definidos como literales en el
+     bloque @theme): se reasignan aquí para que cambien en modo oscuro. */
+  --color-background: #151a17;
+  --color-foreground: #e6e3db;
+  --color-surface: #1d221f;
+  --color-surface-muted: #262c28;
+  --color-muted-foreground: #9aa39b;
+  --color-border: #2c332e;
+  --color-primary: #96c0a7;
+  --color-primary-foreground: #101713;
+  --color-primary-soft: #232d27; /* salvia tenue: nav activo, badges */
+  --color-primary-light: #b6d2c1;
+  --color-petal: #caa99b; /* blush atenuado */
+  --color-mint: #8ee6b6; /* menta neón-pastel que ilumina sobre oscuro */
+  --color-mint-soft: #1e332a;
+  --color-honey: #e8c37c; /* ámbar cálido luminoso sobre oscuro */
+  --color-honey-soft: #322a18;
+  --color-accent-warm: #cc9e78; /* terracota que resalta en oscuro */
+  --color-accent-warm-soft: #302620;
+  --color-danger: #cf8c7d;
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.5);
 }

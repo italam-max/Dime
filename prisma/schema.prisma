@@ -179,11 +179,18 @@ model AssessmentResponse {
 }
 
 // Material psicoeducativo del terapeuta (privado por cuenta).
+// El contenido se captura en campos guiados (sin markdown): un resumen, el
+// cuerpo en texto plano por párrafos, puntos clave (uno por línea) y, para los
+// formatos de medios, un enlace. `format` define de qué tipo de recurso se trata.
 model Article {
   id          String              @id @default(cuid())
   title       String
   category    String // ANSIEDAD | DEPRESION | ESTRES | SUENO | GENERAL
-  body        String // markdown
+  format      String              @default("ARTICULO") // ARTICULO | VIDEO | AUDIO | INFOGRAFIA | EJERCICIO
+  summary     String? // resumen breve
+  body        String? // texto plano por párrafos (ARTICULO / EJERCICIO)
+  keyPoints   String? // puntos clave, uno por línea
+  url         String? // enlace o embed (VIDEO / AUDIO / INFOGRAFIA)
   published   Boolean             @default(false)
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt

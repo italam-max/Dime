@@ -1,21 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Search, UserPlus, Users } from "lucide-react";
+import { CalendarClock, ListTodo, Search, UserPlus, Users, Wallet } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { calculateAge, formatDate, patientFullName } from "@/lib/utils";
-import { PatientActiveBadge } from "@/components/pacientes/status-badge";
+import { PatientRow } from "@/components/pacientes/patient-row";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 
 export const metadata: Metadata = {
   title: "Pacientes · Dime",
@@ -62,16 +52,92 @@ export default async function PacientesPage({
       orderBy: [{ apellidos: "asc" }, { nombre: "asc" }],
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      // Última cita del paciente (la más reciente por fecha de inicio).
-      include: {
-        appointments: {
-          orderBy: { startAt: "desc" },
-          take: 1,
-          select: { startAt: true },
-        },
+      select: {
+        id: true,
+        nombre: true,
+        apellidos: true,
+        telefono: true,
+        fechaNacimiento: true,
+        isActive: true,
       },
     }),
   ]);
+
+  // Enriquecimiento útil por paciente (solo los de esta página): próxima cita,
+  // tareas pendientes y saldo (pagos PENDIENTE/PARCIAL, igual que el panel).
+  const ids = patients.map((p) => p.id);
+  const now = new Date();
+  const [nextAppointments, pendingTasks, balances] = await Promise.all([
+    ids.length
+      ? prisma.appointment.findMany({
+          where: {
+            patientId: { in: ids },
+            startAt: { gte: now },
+            status: { in: ["PENDIENTE", "CONFIRMADA"] },
+          },
+          orderBy: { startAt: "asc" },
+          select: { patientId: true, startAt: true },
+        })
+      : [],
+    ids.length
+      ? prisma.task.groupBy({
+          by: ["patientId"],
+          where: { patientId: { in: ids }, completedAt: null },
+          _count: { _all: true },
+        })
+      : [],
+    ids.length
+      ? prisma.payment.groupBy({
+          by: ["patientId"],
+          where: { patientId: { in: ids }, status: { in: ["PENDIENTE", "PARCIAL"] } },
+          _sum: { amount: true },
+        })
+      : [],
+  ]);
+
+  const nextByPatient = new Map<string, Date>();
+  for (const appt of nextAppointments) {
+    if (!nextByPatient.has(appt.patientId)) nextByPatient.set(appt.patientId, appt.startAt);
+  }
+  const tasksByPatient = new Map(pendingTasks.map((t) => [t.patientId, t._count._all]));
+  const balanceByPatient = new Map(balances.map((b) => [b.patientId, b._sum.amount ?? 0]));
+
+  // Resumen del consultorio (pacientes activos): cuántos necesitan atención.
+  const [activos, conCita, conTareas, conSaldo] = await Promise.all([
+    prisma.patient.count({ where: { isActive: true } }),
+    prisma.appointment
+      .findMany({
+        where: {
+          startAt: { gte: now },
+          status: { in: ["PENDIENTE", "CONFIRMADA"] },
+          patient: { isActive: true },
+        },
+        select: { patientId: true },
+        distinct: ["patientId"],
+      })
+      .then((rows) => rows.length),
+    prisma.task
+      .findMany({
+        where: { completedAt: null, patient: { isActive: true } },
+        select: { patientId: true },
+        distinct: ["patientId"],
+      })
+      .then((rows) => rows.length),
+    prisma.payment
+      .findMany({
+        where: { status: { in: ["PENDIENTE", "PARCIAL"] }, patient: { isActive: true } },
+        select: { patientId: true },
+        distinct: ["patientId"],
+      })
+      .then((rows) => rows.length),
+  ]);
+
+  const resumen = [
+    { icon: Users, value: activos, label: "activos", tone: "text-primary" },
+    { icon: CalendarClock, value: conCita, label: "con cita próxima", tone: "text-primary" },
+    { icon: ListTodo, value: conTareas, label: "con tareas", tone: "text-honey" },
+    { icon: Wallet, value: conSaldo, label: "con saldo", tone: "text-accent-warm" },
+  ];
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -100,6 +166,29 @@ export default async function PacientesPage({
             Nuevo paciente
           </Link>
         </Button>
+      </div>
+
+      {/* Franja de resumen del consultorio: identidad de tablero (no galería),
+          con un resplandor sutil y cifras con presencia. */}
+      <div
+        className="relative overflow-hidden rounded-xl bg-card px-6 py-4 ring-1 ring-foreground/10"
+        style={{
+          backgroundImage:
+            "radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 55%)",
+        }}
+      >
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+          {resumen.map(({ icon: Icon, value, label, tone }, i) => (
+            <div key={label} className="flex items-center gap-3">
+              {i > 0 && <span className="mr-5 hidden h-8 w-px bg-border sm:block" aria-hidden />}
+              <Icon size={20} strokeWidth={1.8} className={tone} aria-hidden />
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-2xl font-semibold tabular-nums text-foreground">{value}</span>
+                <span className="text-sm text-muted-foreground">{label}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <form method="GET" action="/pacientes" className="flex flex-wrap items-center gap-3">
@@ -152,61 +241,24 @@ export default async function PacientesPage({
           }
         />
       ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Nombre
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Edad
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Teléfono
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Estado
-                </TableHead>
-                <TableHead className="text-xs uppercase tracking-widest text-muted-foreground">
-                  Última cita
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {patients.map((patient) => {
-                const age = calculateAge(patient.fechaNacimiento);
-                const lastAppointment = patient.appointments[0];
-                return (
-                  <TableRow key={patient.id}>
-                    <TableCell>
-                      <Link
-                        href={`/pacientes/${patient.id}`}
-                        className="font-medium text-foreground hover:text-primary hover:underline underline-offset-4"
-                      >
-                        {patientFullName(patient)}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {age !== null ? `${age} años` : "—"}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {patient.telefono}
-                    </TableCell>
-                    <TableCell>
-                      <PatientActiveBadge isActive={patient.isActive} />
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {lastAppointment
-                        ? formatDate(lastAppointment.startAt, "d 'de' MMM yyyy")
-                        : "Sin citas"}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </Card>
+        <div className="stagger-children space-y-2.5">
+          {patients.map((patient) => (
+            <PatientRow
+              key={patient.id}
+              patient={{
+                id: patient.id,
+                nombre: patient.nombre,
+                apellidos: patient.apellidos,
+                telefono: patient.telefono,
+                fechaNacimiento: patient.fechaNacimiento,
+                isActive: patient.isActive,
+                nextAppointmentAt: nextByPatient.get(patient.id) ?? null,
+                pendingTasks: tasksByPatient.get(patient.id) ?? 0,
+                balance: balanceByPatient.get(patient.id) ?? 0,
+              }}
+            />
+          ))}
+        </div>
       )}
 
       {total > PAGE_SIZE && (

@@ -161,7 +161,7 @@ export async function AssessmentsSection({ patientId }: { patientId: string }) {
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary">
           <ClipboardCheck size={18} strokeWidth={1.8} aria-hidden />
         </span>
-        <CardTitle className="flex-1 text-lg">Evaluaciones</CardTitle>
+        <CardTitle className="flex-1">Evaluaciones</CardTitle>
         {instruments.length > 0 && (
           <AssignAssessmentDialog patientId={patientId} instruments={instruments} />
         )}

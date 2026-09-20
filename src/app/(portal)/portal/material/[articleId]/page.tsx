@@ -5,7 +5,8 @@ import { ArrowLeft } from "lucide-react";
 import { getPortalPatient, hasPortalConsent } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ARTICLE_CATEGORY_LABELS } from "@/lib/validations/article";
-import { MarkdownContent } from "@/components/biblioteca/markdown-content";
+import { ResourceContent } from "@/components/biblioteca/resource-content";
+import { FormatBadge } from "@/components/biblioteca/format-badge";
 
 export const metadata: Metadata = {
   title: "Material · Dime",
@@ -49,16 +50,25 @@ export default async function PortalMaterialPage({
       </Link>
 
       <header className="mt-4">
-        <p className="text-xs font-medium uppercase tracking-widest text-primary">
-          {ARTICLE_CATEGORY_LABELS[assignment.article.category] ?? assignment.article.category}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <FormatBadge format={assignment.article.format} />
+          <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+            {ARTICLE_CATEGORY_LABELS[assignment.article.category] ?? assignment.article.category}
+          </span>
+        </div>
         <h1 className="mt-2 font-display text-3xl font-semibold text-foreground">
           {assignment.article.title}
         </h1>
       </header>
 
       <div className="mt-6 rounded-card bg-surface p-6 shadow-soft">
-        <MarkdownContent markdown={assignment.article.body} />
+        <ResourceContent
+          format={assignment.article.format}
+          summary={assignment.article.summary}
+          body={assignment.article.body}
+          keyPoints={assignment.article.keyPoints}
+          url={assignment.article.url}
+        />
       </div>
     </article>
   );
